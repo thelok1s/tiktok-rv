@@ -1,4 +1,4 @@
-# tiktok-rv 
+# tiktok-rv [RU]
 
 Этот репозиторий содержит автоматизированный GitHub Actions пайплайн для загрузки последней версии tiktok, патчинга, подписи и публикации мода каждые две недели.
 
@@ -66,7 +66,7 @@
    ```
 
 ### Вариант 3: Root или Shizuku
-Многие продвинутые менеджеры пакетов (например, App Manager) позволяют устанавливать наборы APK (сплиты) напрямую, если им предоставлен Root-доступ или доступ через Shizuku.
+Многие продвинутые менеджеры пакетов (например, App Manager, SAI) позволяют устанавливать наборы APK (сплиты) напрямую, если им предоставлен Root-доступ или доступ через Shizuku.
 
 ## Лицензия
 
@@ -81,7 +81,7 @@
 
 ---
 
-# tiktok-rv (English)
+# tiktok-rv [EN]
 
 This repository contains an automated GitHub Actions pipeline for downloading the latest version of TikTok, patching it, signing it, and publishing the mod every two weeks.
 
@@ -91,7 +91,18 @@ A lot. Modders often promote their channels and inject a ton of ads, blocking th
 
 On the other hand, we have the ReVanced mod (or rather, a mix of plugins), where you modify your own official app with open-source patches. However, these patches haven't been updated in a long time, and the last version that supported them (around 36.1) is hopelessly outdated. This repository contains a basic minimum of updated patches and a pipeline to build the mod.
 
-*(See images in the Russian section above demonstrating bloatware and signatures in other popular mods compared to the original app)*
+<div style="display: flex; flex-wrap: wrap;">
+  <img style="width: 33%;" width="710" height="357" alt="image" src="https://github.com/user-attachments/assets/effaaeac-7b47-48c3-9b45-2c9a5154ee5d" />
+  <img style="width: 33%;" width="799" height="418" alt="image" src="https://github.com/user-attachments/assets/424c0a28-0e70-4417-9b7c-9811dcc8c9e5" />
+  <img style="width: 30%;" width="801" height="459" alt="image" src="https://github.com/user-attachments/assets/80b21929-a4d8-45a8-aceb-3c6fc4af67de" />
+   <p style="width: 100%;">
+    2 popular mods and plugin. PUP (Potentially Unwanted Program) — not necessarily a virus, just a bloatware
+  </p>
+  <img style="width: 50%;" width="682" height="182" alt="image" src="https://github.com/user-attachments/assets/92a0610f-7f07-490a-a234-709da46d3505" />
+  <p style="width: 100%;">
+   And original app. Where did these signatures came from?
+  </p>
+</div>
 
 ## Overview
 
