@@ -94,6 +94,9 @@ jobs:
         zip -u raw-base.apk AndroidManifest.xml
 
     - name: Build ReVanced Patches
+      env:
+        ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
+        ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ secrets.GITHUB_TOKEN }}
       run: |
         cd revanced-patches
         ./gradlew build
