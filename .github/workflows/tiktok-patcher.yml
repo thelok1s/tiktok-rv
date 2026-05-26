@@ -136,10 +136,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
+          AAPT=$(ls $ANDROID_SDK_ROOT/build-tools/*/aapt | tail -1)
+          TT_VERSION=$($AAPT dump badging raw-base.apk | grep -oP "versionName='\K[^']+")
+          
           TAG="v$(date +'%Y.%m.%d')"
           # Delete existing release with same tag if it exists (idempotent re-runs)
           gh release delete "$TAG" --yes 2>/dev/null || true
           git push origin --delete "$TAG" 2>/dev/null || true
           gh release create "$TAG" tiktok-rv.apk \
             --title "tiktok-rv $TAG" \
-            --notes "Automated build of tiktok-rv. Single Universal APK for easy installation."
+            --notes "Automated build of tiktok-rv based on TikTok v${TT_VERSION}."
