@@ -59,8 +59,7 @@ jobs:
             fi
         fi
 
-        # Locate the base apk and splits
-        # Base APK is the largest APK file in tiktok_dl
+        # Base APK is the largest APK file in tiktok_dl (not a split/config APK)
         BASE_APK=$(ls -S tiktok_dl/*.apk | head -n 1)
         
         if [ -z "$BASE_APK" ]; then
@@ -68,27 +67,9 @@ jobs:
           exit 1
         fi
         
+        echo "Using base APK: $BASE_APK ($(du -sh $BASE_APK | cut -f1))"
         cp "$BASE_APK" raw-base.apk
         echo "BASE_APK=$BASE_APK" >> $GITHUB_ENV
-
-    - name: Setup Apktool
-      run: |
-        wget https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar -O apktool.jar
-        
-    - name: Patch AndroidManifest.xml
-      run: |
-        # Decode only manifest to save time and avoid resource compilation errors
-        java -jar apktool.jar d raw-base.apk -o decoded_base -s -r -f
-        
-        # Patch manifest using our python script
-        python patch_manifest.py decoded_base/AndroidManifest.xml
-        
-        # Rebuild manifest
-        java -jar apktool.jar b decoded_base -o patched_manifest.apk
-        
-        # Extract patched manifest and inject into original base APK
-        unzip -p patched_manifest.apk AndroidManifest.xml > AndroidManifest.xml
-        zip -u raw-base.apk AndroidManifest.xml
 
     - name: Build ReVanced Patches
       env:
@@ -101,12 +82,15 @@ jobs:
     - name: Download ReVanced CLI
       run: |
         URL=$(curl -s https://api.github.com/repos/ReVanced/revanced-cli/releases/latest | grep "browser_download_url.*\.jar" | grep -v "\.sig" | cut -d '"' -f 4)
+        echo "Downloading ReVanced CLI from: $URL"
         wget "$URL" -O revanced-cli.jar
 
     - name: Patch APK with ReVanced
       run: |
         # Find the built patch bundle
         PATCH_BUNDLE=$(find revanced-patches/patches/build/libs -name "patches-*.rvp" | head -n 1)
+        echo "Using patch bundle: $PATCH_BUNDLE"
+        echo "Raw base APK size: $(du -sh raw-base.apk | cut -f1)"
         
         java -jar revanced-cli.jar patch raw-base.apk \
           -p "$PATCH_BUNDLE" \
