@@ -48,7 +48,7 @@ jobs:
             echo "gplaydl failed. Falling back to apkeep (APKPure)..."
             wget https://github.com/EFForg/apkeep/releases/download/1.0.0/apkeep-x86_64-unknown-linux-gnu -O apkeep
             chmod +x apkeep
-            ./apkeep -a com.zhiliaoapp.musically -d apkpure tiktok_dl
+            ./apkeep -a com.zhiliaoapp.musically -d apk-pure tiktok_dl
             
             DOWNLOADED_FILE=$(find tiktok_dl -type f | head -n 1)
             if unzip -l "$DOWNLOADED_FILE" | grep -q "\.apk$"; then
