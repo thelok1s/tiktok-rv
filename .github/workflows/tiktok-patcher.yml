@@ -39,6 +39,7 @@ jobs:
       run: |
         mkdir -p tiktok_dl
         # Note: gplaydl usually creates a folder with the package name inside the output dir
+        $HOME/.local/bin/uv tool run gplaydl auth
         $HOME/.local/bin/uv tool run gplaydl download com.zhiliaoapp.musically -o tiktok_dl
         
         # Locate the base apk and splits
