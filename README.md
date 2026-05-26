@@ -1,30 +1,55 @@
-# TikTok ReVanced Automated Patcher
+# tiktok-rv 
 
-This repository contains a fully automated GitHub Actions pipeline for downloading, patching, signing, and releasing a modded TikTok application every two weeks.
+Этот репозиторий содержит автоматизированный GitHub Actions пайплайн для загрузки последней версии tiktok, патчинга, подписи и публикации мода каждые две недели.
 
-## Overview
+## Что не так с другими модами?
 
-The pipeline executes the following steps:
-1. **Download APK**: Automatically fetches the latest split APKs for TikTok directly from the Google Play Store using [`gplaydl`](https://github.com/hkalina/gplaydl) which utilizes an anonymous session token to bypass account requirements.
-2. **Remove Split Restrictions**: Uses a python script to parse the base `AndroidManifest.xml` and strips `android:isSplitRequired="true"` along with fused module metadata, bypassing the split restriction error without requiring a full `apktool` resource compilation (which frequently breaks on complex apps like TikTok).
-3. **Build Custom Patches**: Compiles the modified `revanced-patches` source tree included in this repository.
-4. **Apply Patches**: Uses `revanced-cli` to inject the patches into the bytecode of the stripped Base APK.
-5. **Sign & Release**: Signs the patched Base APK and the original configuration split APKs (en, arm64_v8a, xxhdpi) with a PKCS12 keystore and packages them into a ZIP file uploaded to GitHub Releases.
+Очень многое. Моддеры пиарят свои каналы и суют кучу рекламы, блокируя приложение баннерами и "обновлениями", делая загрузку новой версии длительным процессом с множеством лишних шагов, где по пути нужно подписаться на 1337 каналов и перейти по 999 скам сслыкам. Добавляют слишком много фич в достаточно хрупкое (из-за встроенных защит и обфускации) приложение, раздувая размер приложения.  
 
-## Applied Patches
+С другой стороны у нас есть мод от ReVanced (а точнее - сборная солянка из плагинов), где вы модифиуруете свое, официальное приложение, патчами с открытым кодом. Однако патчи давно не обновлялись, а последняя версия которая их поддерживала (36.1, типо того) безнадежно устарела. Этот репозиторий содержит базовый минимум из обновленных патчей и пайплайн для сборки мода.
 
-The patched TikTok application permanently includes the following features (bypassing the need for an in-app settings menu):
+<div style="display: flex; flex-wrap: wrap;">
+  <img style="width: 33%;" width="710" height="357" alt="image" src="https://github.com/user-attachments/assets/effaaeac-7b47-48c3-9b45-2c9a5154ee5d" />
+  <img style="width: 33%;" width="799" height="418" alt="image" src="https://github.com/user-attachments/assets/424c0a28-0e70-4417-9b7c-9811dcc8c9e5" />
+  <img style="width: 30%;" width="801" height="459" alt="image" src="https://github.com/user-attachments/assets/80b21929-a4d8-45a8-aceb-3c6fc4af67de" />
+   <p style="width: 100%;">
+    2 популярных мода и плагин. PUP — это не вирус, а просто мусорный софт / bloatware (Potentially Unwanted Program)
+  </p>
+  <img style="width: 50%;" width="682" height="182" alt="image" src="https://github.com/user-attachments/assets/92a0610f-7f07-490a-a234-709da46d3505" />
+  <p style="width: 100%;">
+   Оригинальное приложение. И откуда только в модах взялась эта сигнатура? 
+  </p>
+</div>
 
-*   **Disable login requirement**: Bypasses the mandatory login/sign-up screen, allowing instant access to the app's content without an account.
-*   **Feed filter**: Removes advertisements from the video feed.
-*   **Downloads**: Force-enables downloading for all videos, removes the TikTok watermark from downloaded videos, and modifies the default download directory to `/sdcard/Pictures/TikTok`.
-*   **Playback speed**: Adds playback speed controls (modified to support TikTok v45.3.3+ by updating the `getCurrentAweme` method signature to `LJII()`).
-*   **Show seekbar**: Forces the video seekbar to be visible, allowing scrubbing through any video.
-*   **Remember clear display**: Remembers your preference for "Clear Display" mode across videos.
-*   **SIM spoof**: Spoofs the SIM card region (defaults to USA) to bypass regional restrictions on content.
 
-*Note: The "Settings" and "Sanitize sharing links" patches are intentionally omitted from this build pipeline due to compatibility issues with TikTok's latest obfuscation and resource compilation pipeline.*
+## Обзор
 
-## License
+### Применяемые патчи
 
-The patch source code in the `revanced-patches` directory is licensed under the **GNU General Public License v3.0 (GPLv3)**, inheriting from the original [ReVanced Patches](https://github.com/ReVanced/revanced-patches) project. See the [LICENSE](LICENSE) file for more details.
+Модифицированное TikTok-приложение принудительно включает следующие функции (меню настроек не предусмотрено):
+
+* **Отключение требования входа:** Обходит обязательный экран входа/регистрации, позволяя сразу просматривать контент без аккаунта.
+* **Фильтр ленты:** Удаляет рекламу из видеоленты.
+* **Загрузки:** Принудительно включает скачивание всех видео (вероятно, функция сломана со стороны сервера), удаляет watermark TikTok из скачанных видео и изменяет директорию загрузки по умолчанию на /sdcard/Pictures/TikTok.
+* **Скорость воспроизведения:** Добавляет управление скоростью воспроизведения (модифицировано для поддержки TikTok v45.3.3+ через обновление сигнатуры метода getCurrentAweme на LJII()).
+* **Отображение seekbar:** Принудительно показывает seekbar видео, позволяя перематывать любые ролики.
+* **Запоминание Clear Display:** Сохраняет выбранный режим «Clear Display» между видео.
+* **Подмена SIM-региона:** Подменяет регион SIM-карты (по умолчанию — США) для обхода региональных ограничений контента. Загрузка контента работает.
+
+### Pipeline выполняет следующие шаги:
+
+1. Автоматически получает последние split APK-файлы TikTok напрямую из Google Play Store с помощью  [gplaydl](https://github.com/rehmatworks/gplaydl).
+2. Использует Python-скрипт для парсинга AndroidManifest.xml базового APK и удаления android:isSplitRequired="true" вместе с metadata fused-модулей, обходя ошибку обязательных split APK без необходимости полной перекомпиляции ресурсов через apktool.
+3. Компилирует модифицированное дерево исходников revanced-patches, включённое в этот репозиторий.
+4. Использует [revanced-cli](https://github.com/revanced/revanced-cli) для внедрения патчей в байткод stripped Base APK.
+5. Подписывает пропатченный Base APK и оригинальные configuration split APK (en, arm64_v8a, xxhdpi) с помощью PKCS12 keystore и упаковывает их в ZIP-архив, который затем загружается в GitHub Releases.
+
+## Лицензия
+
+Исходный код патчей в директории revanced-patches распространяется по лицензии GNU General Public License v3.0 (GPLv3), унаследованной от оригинального проекта  ReVanced Patches. Подробнее см. в файле LICENSE.
+
+## Благодарности
+* [gplaydl](https://github.com/rehmatworks/gplaydl)
+* [revanced-cli](https://github.com/revanced/revanced-cli) 
+* [revanced-patcher](https://github.com/ReVanced/revanced-patcher)
+* [revanced-patches](https://gitlab.com/ReVanced/revanced-patches)
