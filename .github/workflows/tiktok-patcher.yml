@@ -78,7 +78,7 @@ jobs:
     - name: Patch AndroidManifest.xml
       run: |
         # Decode only manifest to save time and avoid resource compilation errors
-        java -jar apktool.jar d raw-base.apk -o decoded_base --no-src -f
+        java -jar apktool.jar d raw-base.apk -o decoded_base -s -r -f
         
         # Patch manifest using our python script
         python patch_manifest.py decoded_base/AndroidManifest.xml
