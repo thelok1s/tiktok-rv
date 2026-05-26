@@ -115,7 +115,6 @@ jobs:
         # Sign the patched base APK
         $APKSIGNER sign --ks new.keystore \
           --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
-          --key-pass pass:${{ secrets.KEY_PASSWORD }} \
           --ks-key-alias ${{ secrets.KEY_ALIAS }} \
           --out release_apks/base.apk unsigned-tiktok.apk
           
@@ -130,7 +129,6 @@ jobs:
             filename=$(basename "$split")
             $APKSIGNER sign --ks new.keystore \
               --ks-pass pass:$KEYSTORE_PASS \
-              --key-pass pass:$KEY_PASS \
               --ks-key-alias $KEY_ALIAS \
               --out "release_apks/$filename" "$split"
           done
