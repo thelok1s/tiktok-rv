@@ -103,7 +103,8 @@ jobs:
 
     - name: Download ReVanced CLI
       run: |
-        wget https://github.com/ReVanced/revanced-cli/releases/latest/download/revanced-cli.jar
+        URL=$(curl -s https://api.github.com/repos/ReVanced/revanced-cli/releases/latest | grep "browser_download_url.*\.jar" | grep -v "\.sig" | cut -d '"' -f 4)
+        wget "$URL" -O revanced-cli.jar
 
     - name: Patch APK with ReVanced
       run: |
