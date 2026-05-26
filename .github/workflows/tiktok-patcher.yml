@@ -1,0 +1,151 @@
+name: Automate TikTok Patching
+
+on:
+  schedule:
+    - cron: '0 0 */14 * *' # Run every 14 days
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # Needed to create a GitHub Release
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install uv and gplaydl
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        $HOME/.cargo/bin/uv tool install gplaydl
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Download TikTok APK
+      run: |
+        mkdir -p tiktok_dl
+        # Note: gplaydl usually creates a folder with the package name inside the output dir
+        $HOME/.cargo/bin/uv tool run gplaydl download com.zhiliaoapp.musically -o tiktok_dl
+        
+        # Locate the base apk and splits
+        BASE_APK=$(find tiktok_dl -name "*.apk" | grep -v "config" | head -n 1)
+        if [ -z "$BASE_APK" ]; then
+          # Fallback if gplaydl names it differently
+          BASE_APK=$(find tiktok_dl -name "com.zhiliaoapp.musically.apk" | head -n 1)
+        fi
+        
+        if [ -z "$BASE_APK" ]; then
+          echo "Base APK not found!"
+          exit 1
+        fi
+        
+        cp "$BASE_APK" raw-base.apk
+        echo "BASE_APK=$BASE_APK" >> $GITHUB_ENV
+
+    - name: Setup Apktool
+      run: |
+        wget https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.9.3.jar -O apktool.jar
+        
+    - name: Patch AndroidManifest.xml
+      run: |
+        # Decode only manifest to save time and avoid resource compilation errors
+        java -jar apktool.jar d raw-base.apk -o decoded_base --no-src -f
+        
+        # Patch manifest using our python script
+        python patch_manifest.py decoded_base/AndroidManifest.xml
+        
+        # Rebuild manifest
+        java -jar apktool.jar b decoded_base -o patched_manifest.apk
+        
+        # Extract patched manifest and inject into original base APK
+        unzip -p patched_manifest.apk AndroidManifest.xml > AndroidManifest.xml
+        zip -u raw-base.apk AndroidManifest.xml
+
+    - name: Build ReVanced Patches
+      run: |
+        cd revanced-patches
+        ./gradlew build
+
+    - name: Download ReVanced CLI
+      run: |
+        wget https://github.com/ReVanced/revanced-cli/releases/latest/download/revanced-cli.jar
+
+    - name: Patch APK with ReVanced
+      run: |
+        # Find the built patch bundle
+        PATCH_BUNDLE=$(find revanced-patches/patches/build/libs -name "patches-*.rvp" | head -n 1)
+        
+        java -jar revanced-cli.jar patch raw-base.apk \
+          -p "$PATCH_BUNDLE" \
+          -b \
+          -o unsigned-tiktok.apk \
+          --exclusive \
+          -e "Feed filter" \
+          -e "Downloads" \
+          -e "SIM spoof" \
+          -e "Remember clear display" \
+          -e "Show seekbar" \
+          -e "Playback speed" \
+          -e "Disable login requirement"
+
+    - name: Sign APKs
+      run: |
+        # Decode Keystore
+        echo "${{ secrets.KEYSTORE_B64 }}" | base64 --decode > new.keystore
+        
+        # Find apksigner
+        APKSIGNER=$(ls $ANDROID_SDK_ROOT/build-tools/*/apksigner | tail -1)
+        
+        mkdir release_apks
+        
+        # Sign the patched base APK
+        $APKSIGNER sign --ks new.keystore \
+          --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
+          --key-pass pass:${{ secrets.KEY_PASSWORD }} \
+          --ks-key-alias ${{ secrets.KEY_ALIAS }} \
+          --out release_apks/base.apk unsigned-tiktok.apk
+          
+        # Sign the split APKs
+        find tiktok_dl -name "config.*.apk" -exec bash -c '
+          APKSIGNER=$1
+          KEYSTORE_PASS=$2
+          KEY_PASS=$3
+          KEY_ALIAS=$4
+          shift 4
+          for split in "$@"; do
+            filename=$(basename "$split")
+            $APKSIGNER sign --ks new.keystore \
+              --ks-pass pass:$KEYSTORE_PASS \
+              --key-pass pass:$KEY_PASS \
+              --ks-key-alias $KEY_ALIAS \
+              --out "release_apks/$filename" "$split"
+          done
+        ' _ "$APKSIGNER" "${{ secrets.KEYSTORE_PASSWORD }}" "${{ secrets.KEY_PASSWORD }}" "${{ secrets.KEY_ALIAS }}" {} +
+
+    - name: Package Release
+      run: |
+        cd release_apks
+        zip -r ../tiktok-revanced-release.zip *
+        
+    - name: Create GitHub Release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        TAG="v$(date +'%Y.%m.%d')"
+        gh release create "$TAG" tiktok-revanced-release.zip \
+          --title "TikTok ReVanced $TAG" \
+          --notes "Automated build of TikTok ReVanced bypassing split APK restrictions."
