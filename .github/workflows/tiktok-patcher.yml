@@ -60,11 +60,8 @@ jobs:
         fi
 
         # Locate the base apk and splits
-        BASE_APK=$(find tiktok_dl -name "*.apk" | grep -v "config" | head -n 1)
-        if [ -z "$BASE_APK" ]; then
-          # Fallback if gplaydl names it differently
-          BASE_APK=$(find tiktok_dl -name "com.zhiliaoapp.musically.apk" | head -n 1)
-        fi
+        # Base APK is the largest APK file in tiktok_dl
+        BASE_APK=$(ls -S tiktok_dl/*.apk | head -n 1)
         
         if [ -z "$BASE_APK" ]; then
           echo "Base APK not found!"
