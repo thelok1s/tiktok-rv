@@ -47,26 +47,12 @@
 
 ## Установка (Installation)
 
-Так как приложение состоит из нескольких частей (Split APKs), обычная установка через файловый менеджер не сработает. Выберите один из следующих способов:
+Так как приложение теперь собирается в единый Universal APK, установка стала максимально простой:
 
-### Вариант 1: С помощью SAI (Split APKs Installer) - Рекомендуется для Android
-1. Скачайте и распакуйте ZIP-архив из [Releases](../../releases).
-2. Установите приложение [SAI](https://play.google.com/store/apps/details?id=com.aefyr.sai) из Google Play или любого другого источника.
-3. Откройте SAI, нажмите "Установить APK" -> "Встроенный файл-пикер" (или системный).
-4. Выделите **все** извлечённые файлы (base.apk, config.arm64_v8a.apk, config.en.apk, config.xxhdpi.apk) и нажмите "Выбрать".
-5. Нажмите "Установить".
+1. Скачайте файл `tiktok-rv.apk` из [Releases](../../releases).
+2. Запустите скачанный файл и подтвердите установку. (Возможно, потребуется разрешить установку из неизвестных источников в настройках вашего устройства).
 
-### Вариант 2: С помощью ПК (ADB)
-Если у вас есть компьютер и установлен ADB (Android Debug Bridge):
-1. Распакуйте скачанный ZIP-архив в папку.
-2. Подключите телефон к ПК с включённой отладкой по USB.
-3. Выполните команду в терминале:
-   ```bash
-   adb install-multiple base.apk config.arm64_v8a.apk config.en.apk config.xxhdpi.apk
-   ```
-
-### Вариант 3: Root или Shizuku
-Многие продвинутые менеджеры пакетов (например, App Manager, SAI) позволяют устанавливать наборы APK (сплиты) напрямую, если им предоставлен Root-доступ или доступ через Shizuku.
+Вам больше не нужны SAI (Split APKs Installer) или ADB для установки нашего мода!
 
 ## Лицензия
 
@@ -128,32 +114,19 @@ The modified TikTok application permanently forces the following features (no se
 
 ## Installation
 
-Because the app consists of multiple parts (Split APKs), standard installation via a file manager will not work. Choose one of the following methods:
+Because the app is now built as a single Universal APK, the installation is very simple:
 
-### Option 1: Using SAI (Split APKs Installer) - Recommended for Android
-1. Download and extract the ZIP archive from [Releases](../../releases).
-2. Install [SAI](https://play.google.com/store/apps/details?id=com.aefyr.sai) from Google Play or any other source.
-3. Open SAI, tap "Install APKs" -> "Internal file picker" (or System file picker).
-4. Select **all** extracted files (`base.apk`, `config.arm64_v8a.apk`, `config.en.apk`, `config.xxhdpi.apk`) and tap "Select".
-5. Tap "Install".
+1. Download the `tiktok-rv.apk` file from [Releases](../../releases).
+2. Open the downloaded file and confirm the installation. (You may need to allow installation from unknown sources in your device settings).
 
-### Option 2: Using PC (ADB)
-If you have a computer with ADB (Android Debug Bridge) installed:
-1. Extract the downloaded ZIP archive into a folder.
-2. Connect your phone to your PC with USB Debugging enabled.
-3. Run the following command in your terminal:
-   ```bash
-   adb install-multiple base.apk config.arm64_v8a.apk config.en.apk config.xxhdpi.apk
-   ```
-
-### Option 3: Root or Shizuku
-Many advanced package managers (like App Manager) allow installing APK bundles (splits) directly if granted Root or Shizuku access.
+You no longer need SAI (Split APKs Installer) or ADB to install this mod!
 
 ## License
 
 The patch source code in the `revanced-patches` directory is licensed under the GNU General Public License v3.0 (GPLv3), inherited from the original ReVanced Patches project. See the `LICENSE` file for more details.
 
 ## Credits
+* [apkeep](https://github.com/efforg/apkeep)
 * [gplaydl](https://github.com/rehmatworks/gplaydl)
 * [revanced-cli](https://github.com/revanced/revanced-cli) 
 * [revanced-patcher](https://github.com/ReVanced/revanced-patcher)
