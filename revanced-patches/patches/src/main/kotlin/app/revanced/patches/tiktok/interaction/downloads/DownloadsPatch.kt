@@ -1,0 +1,79 @@
+package app.revanced.patches.tiktok.interaction.downloads
+
+import app.revanced.patcher.extensions.*
+import app.revanced.patcher.patch.bytecodePatch
+import app.revanced.patches.tiktok.misc.extension.sharedExtensionPatch
+
+import app.revanced.patches.tiktok.misc.settings.settingsStatusLoadMethod
+import app.revanced.util.findInstructionIndicesReversedOrThrow
+import app.revanced.util.getReference
+import app.revanced.util.returnEarly
+import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
+import com.android.tools.smali.dexlib2.iface.reference.FieldReference
+
+private const val EXTENSION_CLASS_DESCRIPTOR = "Lapp/revanced/extension/tiktok/download/DownloadsPatch;"
+
+@Suppress("unused")
+val downloadsPatch = bytecodePatch(
+    name = "Downloads",
+    description = "Removes download restrictions and changes the default path to download to.",
+) {
+    dependsOn(
+        sharedExtensionPatch,
+
+    )
+
+    compatibleWith(
+        "com.ss.android.ugc.trill"("45.3.3"),
+        "com.zhiliaoapp.musically"("45.3.3"),
+    )
+
+    apply {
+        aclCommonShareMethod.returnEarly(0)
+        aclCommonShare2Method.returnEarly(2)
+
+        // Download videos without watermark.
+        aclCommonShare3Method.addInstructionsWithLabels(
+            0,
+            """
+                invoke-static {}, $EXTENSION_CLASS_DESCRIPTOR->shouldRemoveWatermark()Z
+                move-result v0
+                if-eqz v0, :noremovewatermark
+                const/4 v0, 0x1
+                return v0
+                :noremovewatermark
+                nop
+            """,
+        )
+
+        // Change the download path patch.
+        downloadUriMethod.apply {
+            findInstructionIndicesReversedOrThrow {
+                getReference<FieldReference>().let {
+                    it?.definingClass == "Landroid/os/Environment;" && it.name.startsWith("DIRECTORY_")
+                }
+            }.forEach { fieldIndex ->
+                val pathRegister = getInstruction<OneRegisterInstruction>(fieldIndex).registerA
+                val builderRegister = getInstruction<FiveRegisterInstruction>(fieldIndex + 1).registerC
+
+                // Remove 'field load → append → "/Camera/" → append' block.
+                removeInstructions(fieldIndex, 4)
+
+                addInstructions(
+                    fieldIndex,
+                    """
+                        invoke-static {}, $EXTENSION_CLASS_DESCRIPTOR->getDownloadPath()Ljava/lang/String;
+                        move-result-object v$pathRegister
+                        invoke-virtual { v$builderRegister, v$pathRegister }, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+                    """,
+                )
+            }
+        }
+
+        settingsStatusLoadMethod.addInstruction(
+            0,
+            "invoke-static {}, Lapp/revanced/extension/tiktok/settings/SettingsStatus;->enableDownload()V",
+        )
+    }
+}

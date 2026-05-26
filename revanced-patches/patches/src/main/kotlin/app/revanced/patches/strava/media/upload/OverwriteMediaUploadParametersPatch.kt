@@ -1,0 +1,46 @@
+package app.revanced.patches.strava.media.upload
+
+import app.revanced.patcher.firstImmutableClassDef
+import app.revanced.patcher.patch.bytecodePatch
+import app.revanced.patcher.patch.intOption
+import app.revanced.patcher.patch.longOption
+import app.revanced.util.returnEarly
+
+@Suppress("unused")
+val overwriteMediaUploadParametersPatch = bytecodePatch(
+    name = "Overwrite media upload parameters",
+    description = "Overwrites the compression, resize and trim media (images and videos) parameters returned by Strava's server before upload.",
+) {
+    compatibleWith("com.strava")
+
+    val compressionQuality by intOption(
+        name = "Compression quality (percent)",
+        description = "This is used as the JPEG quality setting (≤ 100).",
+    ) { it == null || it in 1..100 }
+
+    val maxDuration by longOption(
+        name = "maxDuration",
+        description = "The maximum length (≤ ${60 * 60}) of a video before it gets trimmed.",
+    ) { it == null || it in 1..60 * 60 }
+
+    val maxSize by intOption(
+        name = "Max size (pixels)",
+        description = "The image gets resized so that the smaller dimension (width/height) does not exceed this value (≤ 10000).",
+    ) { it == null || it in 1..10000 }
+
+    apply {
+        val mediaUploadParametersClass = firstImmutableClassDef { type.endsWith("/MediaUploadParameters;") }
+
+        compressionQuality?.let { compressionQuality ->
+            mediaUploadParametersClass.getGetCompressionQualityMethod().returnEarly(compressionQuality / 100f)
+        }
+
+        maxDuration?.let { maxDuration ->
+            mediaUploadParametersClass.getGetMaxDurationMethod().returnEarly(maxDuration)
+        }
+
+        maxSize?.let {
+            mediaUploadParametersClass.getGetMaxSizeMethod().returnEarly(it)
+        }
+    }
+}

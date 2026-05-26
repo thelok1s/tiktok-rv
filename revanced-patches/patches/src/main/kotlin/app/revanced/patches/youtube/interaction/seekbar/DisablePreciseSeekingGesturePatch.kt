@@ -1,0 +1,61 @@
+package app.revanced.patches.youtube.interaction.seekbar
+
+import app.revanced.patcher.extensions.ExternalLabel
+import app.revanced.patcher.extensions.addInstructionsWithLabels
+import app.revanced.patcher.extensions.getInstruction
+import app.revanced.patcher.immutableClassDef
+import app.revanced.patcher.patch.bytecodePatch
+import app.revanced.patches.all.misc.resources.addResources
+import app.revanced.patches.all.misc.resources.addResourcesPatch
+import app.revanced.patches.shared.misc.settings.preference.SwitchPreference
+import app.revanced.patches.youtube.misc.extension.sharedExtensionPatch
+import app.revanced.patches.youtube.misc.settings.PreferenceScreen
+import app.revanced.patches.youtube.misc.settings.settingsPatch
+
+private const val EXTENSION_CLASS_DESCRIPTOR =
+    "Lapp/revanced/extension/youtube/patches/DisablePreciseSeekingGesturePatch;"
+
+val disablePreciseSeekingGesturePatch = bytecodePatch(
+    description = "Adds an option to disable precise seeking when swiping up on the seekbar.",
+) {
+    dependsOn(
+        sharedExtensionPatch,
+        settingsPatch,
+        addResourcesPatch,
+    )
+
+    apply {
+        addResources("youtube", "interaction.seekbar.disablePreciseSeekingGesturePatch")
+
+        PreferenceScreen.SEEKBAR.addPreferences(
+            SwitchPreference("revanced_disable_precise_seeking_gesture"),
+        )
+
+        swipingUpGestureParentMethod.immutableClassDef.getAllowSwipingUpGestureMethod().apply {
+            addInstructionsWithLabels(
+                0,
+                """
+                    invoke-static { }, $EXTENSION_CLASS_DESCRIPTOR->isGestureDisabled()Z
+                    move-result v0
+                    if-eqz v0, :disabled
+                    return-void
+                """,
+                ExternalLabel("disabled", getInstruction(0)),
+            )
+        }
+
+        swipingUpGestureParentMethod.immutableClassDef.getShowSwipingUpGuideMethod().apply {
+            addInstructionsWithLabels(
+                0,
+                """
+                    invoke-static { }, $EXTENSION_CLASS_DESCRIPTOR->isGestureDisabled()Z
+                    move-result v0
+                    if-eqz v0, :disabled
+                    const/4 v0, 0x0
+                    return v0
+                """,
+                ExternalLabel("disabled", getInstruction(0)),
+            )
+        }
+    }
+}

@@ -1,0 +1,252 @@
+package app.revanced.patches.youtube.layout.seekbar
+
+import app.revanced.com.android.tools.smali.dexlib2.mutable.MutableMethod
+import app.revanced.com.android.tools.smali.dexlib2.mutable.MutableMethod.Companion.toMutable
+import app.revanced.patcher.*
+import app.revanced.patcher.extensions.addInstructions
+import app.revanced.patcher.extensions.getInstruction
+import app.revanced.patcher.extensions.replaceInstruction
+import app.revanced.patcher.patch.bytecodePatch
+import app.revanced.patches.shared.layout.theme.lithoColorHookPatch
+import app.revanced.patches.shared.layout.theme.lithoColorOverrideHook
+import app.revanced.patches.shared.misc.mapping.resourceMappingPatch
+import app.revanced.patches.youtube.misc.extension.sharedExtensionPatch
+import app.revanced.patches.youtube.misc.playservice.is_19_34_or_greater
+import app.revanced.patches.youtube.misc.playservice.is_19_49_or_greater
+import app.revanced.patches.youtube.misc.playservice.is_20_34_or_greater
+import app.revanced.patches.youtube.misc.playservice.is_21_02_or_greater
+import app.revanced.patches.youtube.misc.playservice.versionCheckPatch
+import app.revanced.patches.youtube.shared.mainActivityOnCreateMethod
+import app.revanced.util.findInstructionIndicesReversedOrThrow
+import app.revanced.util.getReference
+import app.revanced.util.insertLiteralOverride
+import com.android.tools.smali.dexlib2.AccessFlags
+import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
+import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.TwoRegisterInstruction
+import com.android.tools.smali.dexlib2.iface.reference.MethodReference
+import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
+import com.android.tools.smali.dexlib2.immutable.ImmutableMethodParameter
+
+private const val EXTENSION_CLASS_DESCRIPTOR = "Lapp/revanced/extension/youtube/patches/theme/SeekbarColorPatch;"
+
+val seekbarColorPatch = bytecodePatch(
+    description = "Hide or set a custom seekbar color",
+) {
+    dependsOn(
+        sharedExtensionPatch,
+        lithoColorHookPatch,
+        resourceMappingPatch,
+        versionCheckPatch,
+    )
+
+    apply {
+        fun MutableMethod.addColorChangeInstructions(index: Int) {
+            insertLiteralOverride(
+                index,
+                "$EXTENSION_CLASS_DESCRIPTOR->getVideoPlayerSeekbarColor(I)I",
+            )
+        }
+
+        playerSeekbarColorMethodMatch.let {
+            it.method.apply {
+                addColorChangeInstructions(it[-1])
+                addColorChangeInstructions(it[0])
+            }
+        }
+
+        shortsSeekbarColorMethodMatch.let {
+            it.method.addColorChangeInstructions(it[0])
+        }
+
+        setSeekbarClickedColorMethodMatch.immutableMethod.let {
+            val setColorMethodIndex = setSeekbarClickedColorMethodMatch[0] + 1
+
+            navigate(it).to(setColorMethodIndex).stop().apply {
+                val colorRegister = getInstruction<TwoRegisterInstruction>(0).registerA
+                addInstructions(
+                    0,
+                    """
+                        invoke-static { v$colorRegister }, $EXTENSION_CLASS_DESCRIPTOR->getVideoPlayerSeekbarClickedColor(I)I
+                        move-result v$colorRegister
+                    """,
+                )
+            }
+        }
+
+        lithoColorOverrideHook(EXTENSION_CLASS_DESCRIPTOR, "getLithoColor")
+
+        // 19.25+ changes
+
+        var handleBarColorMethodMatches = mutableListOf(playerSeekbarHandle1ColorMethodMatch)
+        if (!is_20_34_or_greater) {
+            handleBarColorMethodMatches += playerSeekbarHandle2ColorMethodMatch
+        }
+        handleBarColorMethodMatches.forEach {
+            it.method.addColorChangeInstructions(it[-1])
+        }
+
+        // If hiding feed seekbar thumbnails, then turn off the cairo gradient
+        // of the watch history menu items as they use the same gradient as the
+        // player and there is no easy way to distinguish which to use a transparent color.
+        if (is_19_34_or_greater) {
+            watchHistoryMenuUseProgressDrawableMethodMatch.let {
+                it.method.apply {
+                    val index = it[1]
+                    val register = getInstruction<OneRegisterInstruction>(index).registerA
+
+                    addInstructions(
+                        index + 1,
+                        """
+                            invoke-static { v$register }, $EXTENSION_CLASS_DESCRIPTOR->showWatchHistoryProgressDrawable(Z)Z
+                            move-result v$register            
+                        """,
+                    )
+                }
+            }
+        }
+
+        lithoLinearGradientMethod.addInstructions(
+            0,
+            """
+                invoke-static/range { p4 .. p5 },  $EXTENSION_CLASS_DESCRIPTOR->getLithoLinearGradient([I[F)[I
+                move-result-object p4   
+            """,
+        )
+
+        val playerMatch: CompositeMatch
+        val checkGradientCoordinates: Boolean
+        if (is_19_49_or_greater) {
+            playerMatch = playerLinearGradientMethodMatch
+            checkGradientCoordinates = true
+        } else {
+            playerMatch = playerLinearGradientLegacyMethodMatch
+            checkGradientCoordinates = false
+        }
+
+        playerMatch.let {
+            it.method.apply {
+                val index = it[-1]
+                val register = getInstruction<OneRegisterInstruction>(index).registerA
+
+                addInstructions(
+                    index + 1,
+                    if (checkGradientCoordinates) {
+                        """
+                           invoke-static { v$register, p0, p1 }, $EXTENSION_CLASS_DESCRIPTOR->getPlayerLinearGradient([III)[I
+                           move-result-object v$register
+                        """
+                    } else {
+                        """
+                           invoke-static { v$register }, $EXTENSION_CLASS_DESCRIPTOR->getPlayerLinearGradient([I)[I
+                           move-result-object v$register
+                        """
+                    },
+                )
+            }
+        }
+
+        // region apply seekbar custom color to splash screen animation.
+
+        if (!is_19_34_or_greater) {
+            return@apply // 19.25 does not have a cairo launch animation.
+        }
+
+        // Hook the splash animation to set the seekbar color.
+        mainActivityOnCreateMethod.apply {
+            val setAnimationIntMethodName = lottieAnimationViewSetAnimationIntMethod.name
+
+            findInstructionIndicesReversedOrThrow {
+                val reference = getReference<MethodReference>()
+                reference?.definingClass == LOTTIE_ANIMATION_VIEW_CLASS_TYPE &&
+                    reference.name == setAnimationIntMethodName
+            }.forEach { index ->
+                val instruction = getInstruction<FiveRegisterInstruction>(index)
+
+                replaceInstruction(
+                    index,
+                    "invoke-static { v${instruction.registerC}, v${instruction.registerD} }, " +
+                        "$EXTENSION_CLASS_DESCRIPTOR->setSplashAnimationLottie(Lcom/airbnb/lottie/LottieAnimationView;I)V",
+                )
+            }
+        }
+
+        // Add non obfuscated method aliases for `setAnimation(int)`
+        // and `setAnimation(InputStream, String)` so extension code can call them.
+        lottieAnimationViewSetAnimationIntMethod.classDef.methods.apply {
+            val addedMethodName = "patch_setAnimation"
+            val setAnimationIntMethodName = lottieAnimationViewSetAnimationIntMethod.name
+
+            add(
+                ImmutableMethod(
+                    LOTTIE_ANIMATION_VIEW_CLASS_TYPE,
+                    addedMethodName,
+                    listOf(ImmutableMethodParameter("I", null, null)),
+                    "V",
+                    AccessFlags.PUBLIC.value,
+                    null,
+                    null,
+                    MutableMethodImplementation(2),
+                ).toMutable().apply {
+                    addInstructions(
+                        """
+                            invoke-virtual { p0, p1 }, Lcom/airbnb/lottie/LottieAnimationView;->$setAnimationIntMethodName(I)V
+                            return-void
+                        """,
+                    )
+                },
+            )
+
+            val factoryStreamClass: CharSequence
+            val factoryStreamName: CharSequence
+            val factoryStreamReturnType: CharSequence
+
+            lottieCompositionFactoryZipMethod.immutableClassDef.getLottieCompositionFactoryFromJsonInputStreamMethod()
+                .let {
+                    factoryStreamClass = it.definingClass
+                    factoryStreamName = it.name
+                    factoryStreamReturnType = it.returnType
+                }
+
+            val lottieAnimationViewSetAnimationStreamMethod = firstImmutableMethodDeclaratively {
+                definingClass(lottieAnimationViewSetAnimationIntMethod.immutableClassDef.type)
+                accessFlags(AccessFlags.PUBLIC, AccessFlags.FINAL)
+                parameterTypes(factoryStreamReturnType.toString())
+                returnType("V")
+            }
+            val setAnimationStreamMethodName = lottieAnimationViewSetAnimationStreamMethod.name
+
+            add(
+                ImmutableMethod(
+                    LOTTIE_ANIMATION_VIEW_CLASS_TYPE,
+                    addedMethodName,
+                    listOf(
+                        ImmutableMethodParameter("Ljava/io/InputStream;", null, null),
+                        ImmutableMethodParameter("Ljava/lang/String;", null, null),
+                    ),
+                    "V",
+                    AccessFlags.PUBLIC.value,
+                    null,
+                    null,
+                    MutableMethodImplementation(4),
+                ).toMutable().apply {
+                    // 21.02+ method is private. Cannot easily change the access flags to public
+                    // because that breaks unrelated opcode that uses invoke-direct and not invoke-virtual.
+                    val methodOpcode = if (is_21_02_or_greater) "invoke-direct" else "invoke-virtual"
+
+                    addInstructions(
+                        """
+                        invoke-static { p1, p2 }, $factoryStreamClass->$factoryStreamName(Ljava/io/InputStream;Ljava/lang/String;)$factoryStreamReturnType
+                        move-result-object v0
+                        $methodOpcode { p0, v0}, Lcom/airbnb/lottie/LottieAnimationView;->$setAnimationStreamMethodName($factoryStreamReturnType)V
+                        return-void
+                    """
+                    )
+                },
+            )
+        }
+
+        // endregion
+    }
+}

@@ -1,0 +1,11 @@
+package app.revanced.patches.letterboxd.unlock.unlockAppIcons
+
+import app.revanced.patcher.definingClass
+import app.revanced.patcher.gettingFirstMethodDeclaratively
+import app.revanced.patcher.name
+import app.revanced.patcher.patch.BytecodePatchContext
+
+internal val BytecodePatchContext.getCanChangeAppIconMethod by gettingFirstMethodDeclaratively {
+    name("getCanChangeAppIcon")
+    definingClass("SettingsAppIconFragment;")
+}

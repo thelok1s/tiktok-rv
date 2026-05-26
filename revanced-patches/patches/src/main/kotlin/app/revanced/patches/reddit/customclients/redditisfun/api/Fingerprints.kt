@@ -1,0 +1,35 @@
+package app.revanced.patches.reddit.customclients.redditisfun.api
+
+import app.revanced.patcher.*
+import app.revanced.patcher.gettingFirstMethodDeclaratively
+import app.revanced.patcher.patch.BytecodePatchContext
+import com.android.tools.smali.dexlib2.AccessFlags
+import com.android.tools.smali.dexlib2.Opcode
+
+internal val BytecodePatchContext.basicAuthorizationMethodMatch by composingFirstMethod {
+    instructions(
+        "yyOCBp.RHJhDKd"(),
+        "fJOxVwBUyo*=f:<OoejWs:AqmIJ"(), // Encrypted basic authorization string.
+    )
+}
+
+internal val BytecodePatchContext.buildAuthorizationStringMethodMatch by composingFirstMethod {
+    instructions(
+        "yyOCBp.RHJhDKd"(),
+        "client_id"(),
+    )
+}
+
+internal val BytecodePatchContext.getUserAgentMethod by gettingFirstMethodDeclaratively {
+    accessFlags(AccessFlags.PUBLIC, AccessFlags.STATIC)
+    returnType("Ljava/lang/String;")
+    parameterTypes()
+    opcodes(
+        Opcode.NEW_ARRAY,
+        Opcode.CONST_4,
+        Opcode.INVOKE_STATIC,
+        Opcode.MOVE_RESULT_OBJECT,
+        Opcode.APUT_OBJECT,
+        Opcode.CONST,
+    )
+}

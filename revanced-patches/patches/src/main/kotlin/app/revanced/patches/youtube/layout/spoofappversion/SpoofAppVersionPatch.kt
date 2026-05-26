@@ -1,0 +1,98 @@
+package app.revanced.patches.youtube.layout.spoofappversion
+
+import app.revanced.patcher.extensions.ExternalLabel
+import app.revanced.patcher.extensions.addInstructions
+import app.revanced.patcher.extensions.addInstructionsWithLabels
+import app.revanced.patcher.extensions.getInstruction
+import app.revanced.patcher.patch.bytecodePatch
+import app.revanced.patches.all.misc.resources.addResources
+import app.revanced.patches.all.misc.resources.addResourcesPatch
+import app.revanced.patches.shared.misc.mapping.resourceMappingPatch
+import app.revanced.patches.shared.misc.settings.preference.ListPreference
+import app.revanced.patches.shared.misc.settings.preference.PreferenceCategory
+import app.revanced.patches.shared.misc.settings.preference.PreferenceScreenPreference.Sorting
+import app.revanced.patches.shared.misc.settings.preference.SwitchPreference
+import app.revanced.patches.youtube.misc.extension.sharedExtensionPatch
+import app.revanced.patches.youtube.misc.playservice.versionCheckPatch
+import app.revanced.patches.youtube.misc.settings.PreferenceScreen
+import app.revanced.patches.youtube.misc.settings.settingsPatch
+import app.revanced.patches.youtube.shared.getToolBarButtonMethodMatch
+import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
+
+private const val EXTENSION_CLASS_DESCRIPTOR =
+    "Lapp/revanced/extension/youtube/patches/spoof/SpoofAppVersionPatch;"
+
+val spoofAppVersionPatch = bytecodePatch(
+    name = "Spoof app version",
+    description = "Adds an option to trick YouTube into thinking you are running an older version of the app. " +
+            "This can be used to restore old UI elements and features.",
+) {
+    dependsOn(
+        resourceMappingPatch,
+        sharedExtensionPatch,
+        settingsPatch,
+        addResourcesPatch,
+        versionCheckPatch,
+    )
+
+    compatibleWith(
+        "com.google.android.youtube"(
+            "20.14.43",
+            "20.21.37",
+            "20.26.46",
+            "20.31.42",
+            "20.37.48",
+            "20.40.45"
+        ),
+    )
+
+    apply {
+        addResources("youtube", "layout.spoofappversion.spoofAppVersionPatch")
+
+        PreferenceScreen.GENERAL.addPreferences(
+            // Group the switch and list preference together, since General menu is sorted by name
+            // and the preferences can be scattered apart with non English languages.
+            PreferenceCategory(
+                titleKey = null,
+                sorting = Sorting.UNSORTED,
+                tag = "app.revanced.extension.shared.settings.preference.NoTitlePreferenceCategory",
+                preferences = setOf(
+                    SwitchPreference("revanced_spoof_app_version"),
+                    ListPreference("revanced_spoof_app_version_target")
+                ),
+            ),
+        )
+
+        /**
+         * If spoofing to target 19.20 or earlier the Library tab can crash due to
+         * missing image resources. As a workaround, do not set an image in the
+         * toolbar when the enum name is UNKNOWN.
+         */
+        // Method is shared and indexes may no longer be correct.
+        getToolBarButtonMethodMatch().let {
+            val imageResourceIndex = it[2]
+            val register =
+                it.method.getInstruction<OneRegisterInstruction>(imageResourceIndex).registerA
+            val jumpIndex = it[-1] + 1
+
+            it.method.addInstructionsWithLabels(
+                imageResourceIndex + 1,
+                "if-eqz v$register, :ignore",
+                ExternalLabel("ignore", it.method.getInstruction(jumpIndex)),
+            )
+        }
+
+        spoofAppVersionMethodMatch.let {
+            val index = it[0]
+            val register = it.method.getInstruction<OneRegisterInstruction>(index).registerA
+
+            it.method.addInstructions(
+                index + 1,
+                """
+                    invoke-static { v$register }, $EXTENSION_CLASS_DESCRIPTOR->getYouTubeVersionOverride(Ljava/lang/String;)Ljava/lang/String;
+                    move-result-object v$register
+                """,
+            )
+        }
+    }
+}
