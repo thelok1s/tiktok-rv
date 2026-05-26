@@ -38,11 +38,27 @@ jobs:
     - name: Download TikTok APK
       run: |
         mkdir -p tiktok_dl
-        # Note: gplaydl usually creates a folder with the package name inside the output dir
-                mkdir -p $HOME/.config/gplaydl
+        mkdir -p $HOME/.config/gplaydl
         echo "${{ secrets.GPLAYDL_AUTH_JSON_B64 }}" | base64 --decode > $HOME/.config/gplaydl/auth-arm64.json
-        $HOME/.local/bin/uv tool run gplaydl download com.zhiliaoapp.musically -o tiktok_dl
         
+        echo "Attempting to download via gplaydl..."
+        if $HOME/.local/bin/uv tool run gplaydl download com.zhiliaoapp.musically -o tiktok_dl; then
+            echo "gplaydl succeeded."
+        else
+            echo "gplaydl failed. Falling back to apkeep (APKPure)..."
+            wget https://github.com/EFForg/apkeep/releases/download/1.0.0/apkeep-x86_64-unknown-linux-gnu -O apkeep
+            chmod +x apkeep
+            ./apkeep -a com.zhiliaoapp.musically -d apkpure tiktok_dl
+            
+            DOWNLOADED_FILE=$(find tiktok_dl -type f | head -n 1)
+            if unzip -l "$DOWNLOADED_FILE" | grep -q "\.apk$"; then
+                echo "File is an XAPK containing splits. Extracting..."
+                unzip -q "$DOWNLOADED_FILE" -d tiktok_dl_extracted
+                find tiktok_dl_extracted -name "*.apk" -exec mv {} tiktok_dl/ \;
+                rm "$DOWNLOADED_FILE"
+            fi
+        fi
+
         # Locate the base apk and splits
         BASE_APK=$(find tiktok_dl -name "*.apk" | grep -v "config" | head -n 1)
         if [ -z "$BASE_APK" ]; then
