@@ -26,8 +26,8 @@ jobs:
     - name: Install uv and gplaydl
       run: |
         curl -LsSf https://astral.sh/uv/install.sh | sh
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        $HOME/.cargo/bin/uv tool install gplaydl
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        $HOME/.local/bin/uv tool install gplaydl
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -39,7 +39,7 @@ jobs:
       run: |
         mkdir -p tiktok_dl
         # Note: gplaydl usually creates a folder with the package name inside the output dir
-        $HOME/.cargo/bin/uv tool run gplaydl download com.zhiliaoapp.musically -o tiktok_dl
+        $HOME/.local/bin/uv tool run gplaydl download com.zhiliaoapp.musically -o tiktok_dl
         
         # Locate the base apk and splits
         BASE_APK=$(find tiktok_dl -name "*.apk" | grep -v "config" | head -n 1)
