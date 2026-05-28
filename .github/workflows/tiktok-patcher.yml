@@ -42,7 +42,6 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           $HOME/.local/bin/uv tool install gplaydl
-          $HOME/.local/bin/uv tool run gplaydl --version || true
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -55,8 +54,6 @@ jobs:
           GPLAYDL_AUTH_JSON_B64: ${{ secrets.GPLAYDL_AUTH_JSON_B64 }}
           GPLAYDL_DISPENSER: ${{ vars.GPLAYDL_DISPENSER }}
         run: |
-          GPLAYDL_PYTHON="$HOME/.local/share/uv/tools/gplaydl/bin/python"
-
           gplaydl_cmd() {
             $HOME/.local/bin/uv tool run gplaydl "$@"
           }
@@ -69,154 +66,12 @@ jobs:
             fi
           }
 
-          gplaydl_info() {
-            if [ -n "${GPLAYDL_DISPENSER:-}" ]; then
-              gplaydl_cmd info "$@" --dispenser "$GPLAYDL_DISPENSER"
-            else
-              gplaydl_cmd info "$@"
-            fi
-          }
-
-          gplaydl_list_splits() {
-            if [ -n "${GPLAYDL_DISPENSER:-}" ]; then
-              gplaydl_cmd list-splits "$@" --dispenser "$GPLAYDL_DISPENSER"
-            else
-              gplaydl_cmd list-splits "$@"
-            fi
-          }
-
           gplaydl_download() {
             if [ -n "${GPLAYDL_DISPENSER:-}" ]; then
               gplaydl_cmd download "$@" --dispenser "$GPLAYDL_DISPENSER"
             else
               gplaydl_cmd download "$@"
             fi
-          }
-
-          classify_gplaydl_failure() {
-            LABEL="$1"
-            STATUS="$2"
-            LOG_FILE="$3"
-
-            echo "gplaydl $LABEL failed with exit code $STATUS."
-            if grep -Eqi "401|Auth token expired|Token expired|Refreshing token" "$LOG_FILE"; then
-              echo "gplaydl diagnostic: Google Play reported auth expiry or HTTP 401."
-            elif grep -Eqi "404|App not found|not found|unavailable for this device" "$LOG_FILE"; then
-              echo "gplaydl diagnostic: Google Play reported HTTP 404/not available for this auth profile, device, IP, or account."
-            elif grep -Eqi "Delivery failed|No download URL|purchase" "$LOG_FILE"; then
-              echo "gplaydl diagnostic: metadata was reachable, but purchase/delivery/download URL resolution failed."
-            elif grep -Eqi "Could not obtain an auth token|Authentication failed|all profiles rejected|dispenser" "$LOG_FILE"; then
-              echo "gplaydl diagnostic: token acquisition from the Aurora dispenser failed."
-            else
-              echo "gplaydl diagnostic: failure type not recognized; see command output above."
-            fi
-          }
-
-          run_gplaydl_logged() {
-            LABEL="$1"
-            shift
-            SAFE_LABEL=$(printf "%s" "$LABEL" | tr -c "A-Za-z0-9_.-" "_")
-            LOG_FILE="${RUNNER_TEMP:-/tmp}/gplaydl-${SAFE_LABEL}.log"
-
-            case "$-" in
-              *e*) ERREXIT_WAS_SET=1 ;;
-              *) ERREXIT_WAS_SET=0 ;;
-            esac
-
-            set +e
-            "$@" >"$LOG_FILE" 2>&1
-            STATUS=$?
-            if [ "$ERREXIT_WAS_SET" = "1" ]; then
-              set -e
-            else
-              set +e
-            fi
-
-            cat "$LOG_FILE"
-            if [ "$STATUS" -ne 0 ]; then
-              classify_gplaydl_failure "$LABEL" "$STATUS" "$LOG_FILE"
-            fi
-
-            return "$STATUS"
-          }
-
-          print_gplaydl_auth_summary() {
-            python3 -c 'import json, pathlib, time; p = pathlib.Path.home() / ".config" / "gplaydl" / "auth-arm64.json"; data = json.loads(p.read_text()) if p.exists() else {}; device = data.get("deviceInfoProvider", {}); user_agent = device.get("userAgentString", ""); print("gplaydl auth summary:" if p.exists() else "gplaydl auth summary: no auth-arm64.json"); p.exists() and print("  cached_age_seconds=%d\n  isAnonymous=%s\n  mccMnc=%s\n  has_deviceConfigToken=%s\n  has_deviceCheckInConsistencyToken=%s\n  userAgent=%s" % (int(time.time() - data.get("_cached_at", 0)), data.get("isAnonymous"), device.get("mccMnc", "N/A"), bool(data.get("deviceConfigToken")), bool(data.get("deviceCheckInConsistencyToken")), user_agent[:180]))'
-          }
-
-          print_gplaydl_environment() {
-            echo "gplaydl version:"
-            gplaydl_cmd --version || true
-            if [ -n "${GPLAYDL_DISPENSER:-}" ]; then
-              echo "gplaydl dispenser source: GPLAYDL_DISPENSER repository variable."
-            else
-              echo "gplaydl dispenser source: public Aurora dispenser."
-            fi
-            if [ -n "${GPLAYDL_AUTH_JSON_B64:-}" ]; then
-              echo "gplaydl auth source: GPLAYDL_AUTH_JSON_B64 secret."
-            else
-              echo "gplaydl auth source: runtime Aurora auth."
-            fi
-          }
-
-          probe_gplaydl_dispenser_profiles() {
-            LIMIT="${1:-6}"
-            DISPENSER_ARG="${GPLAYDL_DISPENSER:-}"
-
-            if [ ! -x "$GPLAYDL_PYTHON" ]; then
-              echo "gplaydl dispenser probe: expected Python runtime not found at $GPLAYDL_PYTHON."
-              return 0
-            fi
-
-            "$GPLAYDL_PYTHON" - "$LIMIT" "$DISPENSER_ARG" <<'PY'
-          import sys
-
-          import httpx
-
-          from gplaydl.auth import DEFAULT_DISPENSER_URL
-          from gplaydl.profiles import get_priority_profiles
-
-          limit = int(sys.argv[1])
-          dispenser_url = sys.argv[2] or DEFAULT_DISPENSER_URL
-          headers = {
-              "User-Agent": "com.aurora.store-4.6.1-70",
-              "Content-Type": "application/json",
-          }
-
-          print(f"gplaydl dispenser probe: probing first {limit} arm64 profiles.")
-          for profile_key, profile in get_priority_profiles("arm64")[:limit]:
-              label = profile.get("UserReadableName", profile_key)
-              try:
-                  response = httpx.post(dispenser_url, json=profile, headers=headers, timeout=30)
-              except Exception as exc:
-                  print(f"gplaydl dispenser probe: {profile_key} ({label}) network_error={exc.__class__.__name__}")
-                  continue
-
-              content_type = response.headers.get("content-type", "unknown")
-              print(
-                  f"gplaydl dispenser probe: {profile_key} ({label}) "
-                  f"status={response.status_code} content_type={content_type}"
-              )
-
-              try:
-                  data = response.json()
-              except Exception:
-                  data = None
-
-              if response.status_code == 200 and isinstance(data, dict):
-                  print(
-                      "gplaydl dispenser probe: "
-                      f"{profile_key} has_authToken={bool(data.get('authToken'))} "
-                      f"isAnonymous={data.get('isAnonymous')} "
-                      f"has_deviceConfigToken={bool(data.get('deviceConfigToken'))}"
-                  )
-                  if not data.get("authToken"):
-                      safe_keys = ",".join(sorted(str(key) for key in data.keys())[:20])
-                      print(f"gplaydl dispenser probe: {profile_key} response_keys={safe_keys}")
-              else:
-                  preview = response.text.replace("\n", " ")[:240]
-                  print(f"gplaydl dispenser probe: {profile_key} response_preview={preview}")
-          PY
           }
 
           apkpure_resolve() {
@@ -292,11 +147,9 @@ jobs:
           }
 
           prepare_gplaydl_auth() {
-            print_gplaydl_environment
             mkdir -p "$HOME/.config/gplaydl"
 
             if [ -n "${GPLAYDL_AUTH_JSON_B64:-}" ]; then
-              echo "Using cached gplaydl auth from GPLAYDL_AUTH_JSON_B64."
               python3 - <<'PY'
           import base64
           import json
@@ -315,118 +168,10 @@ jobs:
               return
             fi
 
-            for attempt in 1 2 3; do
-              echo "Attempting gplaydl anonymous auth (attempt $attempt/3)..."
-              if run_gplaydl_logged "auth-attempt-${attempt}" gplaydl_auth --arch arm64; then
-                return
-              fi
-
-              gplaydl_auth --clear || true
-              sleep $((attempt * 10))
-            done
-
-            echo "gplaydl anonymous auth failed after retries."
-            probe_gplaydl_dispenser_profiles 6 || true
-            return 1
+            gplaydl_auth --arch arm64
           }
 
-          sweep_gplaydl_profiles_for_asia() {
-            PACKAGE_NAME="$1"
-            DISPENSER_ARG="${GPLAYDL_DISPENSER:-}"
-
-            if [ ! -x "$GPLAYDL_PYTHON" ]; then
-              echo "gplaydl diagnostic: expected Python runtime not found at $GPLAYDL_PYTHON."
-              return 1
-            fi
-
-            "$GPLAYDL_PYTHON" - "$PACKAGE_NAME" "$DISPENSER_ARG" <<'PY'
-          import sys
-
-          import httpx
-
-          from gplaydl.api import AuthExpiredError, PlayAPIError, get_details
-          from gplaydl.auth import DEFAULT_DISPENSER_URL, save_auth
-          from gplaydl.profiles import get_priority_profiles
-
-          package_name = sys.argv[1]
-          dispenser_url = sys.argv[2] or DEFAULT_DISPENSER_URL
-          headers = {
-              "User-Agent": "com.aurora.store-4.6.1-70",
-              "Content-Type": "application/json",
-          }
-
-          for profile_key, profile in get_priority_profiles("arm64"):
-              label = profile.get("UserReadableName", profile_key)
-              print(f"gplaydl profile sweep: trying {profile_key} ({label})")
-              try:
-                  response = httpx.post(dispenser_url, json=profile, headers=headers, timeout=30)
-                  print(f"gplaydl profile sweep: dispenser_status={response.status_code}")
-                  if response.status_code != 200:
-                      continue
-
-                  auth = response.json()
-              except Exception as exc:
-                  print(f"gplaydl profile sweep: dispenser_error={exc.__class__.__name__}")
-                  continue
-
-              if not auth.get("authToken"):
-                  print("gplaydl profile sweep: no authToken in dispenser response")
-                  continue
-
-              try:
-                  details = get_details(package_name, auth)
-              except AuthExpiredError:
-                  print("gplaydl profile sweep: Google Play check failed with 401")
-                  continue
-              except PlayAPIError as exc:
-                  print(f"gplaydl profile sweep: Google Play check failed: {exc}")
-                  continue
-              except Exception as exc:
-                  print(f"gplaydl profile sweep: unexpected Google Play check error={exc.__class__.__name__}")
-                  continue
-
-              save_auth(auth, "arm64")
-              version = f"{details.version_string} ({details.version_code})"
-              print(f"gplaydl profile sweep: selected {profile_key} ({label}) for {package_name} v{version}")
-              raise SystemExit(0)
-
-          print(f"gplaydl profile sweep: no public Aurora profile could see {package_name}.")
-          raise SystemExit(1)
-          PY
-          }
-
-          ensure_asia_gplaydl_auth() {
-            PACKAGE_NAME="$1"
-
-            if [ -n "${GPLAYDL_AUTH_JSON_B64:-}" ]; then
-              echo "Skipping Asia profile sweep because cached gplaydl auth is set."
-              return 0
-            fi
-
-            echo "Checking whether current gplaydl auth can see $PACKAGE_NAME..."
-            if run_gplaydl_logged "asia-preflight-info" gplaydl_info "$PACKAGE_NAME" --arch arm64; then
-              echo "Current gplaydl auth can see $PACKAGE_NAME."
-              return 0
-            fi
-
-            echo "Current gplaydl auth cannot see $PACKAGE_NAME. Starting controlled public Aurora profile sweep..."
-            if sweep_gplaydl_profiles_for_asia "$PACKAGE_NAME"; then
-              print_gplaydl_auth_summary
-              return 0
-            fi
-
-            echo "No public Aurora profile in gplaydl could see $PACKAGE_NAME from this runner. APKPure fallback may still be used."
-            return 1
-          }
-
-          set +e
-          prepare_gplaydl_auth
-          PREPARE_GPLAYDL_STATUS=$?
-          set -e
-          if [ "$PREPARE_GPLAYDL_STATUS" -ne 0 ]; then
-            echo "gplaydl auth preparation failed; download commands may still retry auth and APKPure fallback remains available."
-          fi
-          print_gplaydl_auth_summary
+          prepare_gplaydl_auth || true
 
           should_build() {
             [ "$BUILD_VARIANT" = "$1" ] || [ "$BUILD_VARIANT" = "both" ]
@@ -456,7 +201,10 @@ jobs:
 
           find_base_apk() {
             DOWNLOAD_DIR="$1"
-            ls -S "$DOWNLOAD_DIR"/*.apk 2>/dev/null | head -n 1 || true
+            find "$DOWNLOAD_DIR" -maxdepth 1 -type f -name "*.apk" \
+              ! -name "*-asset.apk" \
+              ! -name "*-df_*.apk" \
+              -exec ls -S {} + 2>/dev/null | head -n 1 || true
           }
 
           apk_version_name() {
@@ -543,15 +291,7 @@ jobs:
 
             mkdir -p "$DOWNLOAD_DIR"
 
-            echo "Attempting to download $PACKAGE_NAME via gplaydl..."
-            if [ "$VARIANT" = "asia" ]; then
-              ensure_asia_gplaydl_auth "$PACKAGE_NAME" || true
-            fi
-
-            run_gplaydl_logged "info-${VARIANT}" gplaydl_info "$PACKAGE_NAME" --arch arm64 || true
-            run_gplaydl_logged "list-splits-${VARIANT}" gplaydl_list_splits "$PACKAGE_NAME" --arch arm64 || true
-
-            if run_gplaydl_logged "download-${VARIANT}" gplaydl_download "$PACKAGE_NAME" -a arm64 -o "$DOWNLOAD_DIR"; then
+            if gplaydl_download "$PACKAGE_NAME" -a arm64 --no-extras -o "$DOWNLOAD_DIR"; then
               echo "gplaydl succeeded."
             else
               echo "gplaydl failed for $PACKAGE_NAME. Falling back to apkeep (APKPure)..."
