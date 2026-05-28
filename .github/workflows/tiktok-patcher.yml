@@ -4,6 +4,16 @@ on:
   schedule:
     - cron: "0 0 */14 * *" # Run every 14 days
   workflow_dispatch: # Allow manual trigger
+    inputs:
+      variant:
+        description: "Which TikTok package variant to build"
+        required: false
+        default: "original"
+        type: choice
+        options:
+          - both
+          - original
+          - asia
 
 jobs:
   build:
@@ -12,6 +22,9 @@ jobs:
     permissions:
       contents: write # Needed to create a GitHub Release
       id-token: write
+
+    env:
+      BUILD_VARIANT: ${{ github.event.inputs.variant || 'original' }}
 
     steps:
       - name: Checkout repository
@@ -36,41 +49,275 @@ jobs:
           java-version: "17"
           distribution: "temurin"
 
-      - name: Download TikTok APK
+      - name: Download TikTok APKs
+        env:
+          GPLAYDL_AUTH_JSON_B64: ${{ secrets.GPLAYDL_AUTH_JSON_B64 }}
+          GPLAYDL_DISPENSER: ${{ vars.GPLAYDL_DISPENSER }}
         run: |
-          mkdir -p tiktok_dl
-          mkdir -p $HOME/.config/gplaydl
-          echo "${{ secrets.GPLAYDL_AUTH_JSON_B64 }}" | base64 --decode > $HOME/.config/gplaydl/auth-arm64.json
+          gplaydl_cmd() {
+            $HOME/.local/bin/uv tool run gplaydl "$@"
+          }
 
-          echo "Attempting to download via gplaydl..."
-          if $HOME/.local/bin/uv tool run gplaydl download com.zhiliaoapp.musically -o tiktok_dl; then
-              echo "gplaydl succeeded."
-          else
-              echo "gplaydl failed. Falling back to apkeep (APKPure)..."
+          gplaydl_auth() {
+            if [ -n "${GPLAYDL_DISPENSER:-}" ]; then
+              gplaydl_cmd auth "$@" --dispenser "$GPLAYDL_DISPENSER"
+            else
+              gplaydl_cmd auth "$@"
+            fi
+          }
+
+          gplaydl_download() {
+            if [ -n "${GPLAYDL_DISPENSER:-}" ]; then
+              gplaydl_cmd download "$@" --dispenser "$GPLAYDL_DISPENSER"
+            else
+              gplaydl_cmd download "$@"
+            fi
+          }
+
+          apkpure_resolve() {
+            PACKAGE_NAME="$1"
+            MIN_VERSION="${2:-}"
+            python3 - "$PACKAGE_NAME" "$MIN_VERSION" <<'PY'
+          import re
+          import sys
+          import urllib.request
+
+          package_name = sys.argv[1]
+          min_version = sys.argv[2]
+          api_url = (
+              "https://api.pureapk.com/m/v3/cms/app_version?"
+              f"hl=en-US&package_name={package_name}"
+          )
+          headers = {
+              "x-cv": "3172501",
+              "x-sv": "29",
+              "x-abis": "arm64-v8a",
+              "x-gp": "1",
+              "User-Agent": "apkeep/1.0.0",
+          }
+
+          def version_parts(value):
+              return [int(part) for part in re.findall(r"\d+", value or "")]
+
+          def version_key(value):
+              parts = version_parts(value)
+              return parts + [0] * (4 - len(parts))
+
+          def direct_urls(value):
+              urls = re.findall(r"https?://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+", value)
+              return [
+                  url for url in urls
+                  if "/b/TORRENT/" not in url and ("/b/XAPK/" in url or "/b/APK/" in url)
+              ]
+
+          req = urllib.request.Request(api_url, headers=headers)
+          with urllib.request.urlopen(req, timeout=30) as response:
+              raw = response.read()
+
+          candidates = []
+          seen = set()
+          current_version = ""
+          for item in re.findall(rb"[ -~]{4,}", raw):
+              text = item.decode("latin1")
+              version_match = re.search(r"\b\d+(?:\.\d+){1,3}\b", text)
+              if version_match and not text.startswith("http"):
+                  current_version = version_match.group(0)
+
+              for url in direct_urls(text):
+                  if current_version and (current_version, url) not in seen:
+                      candidates.append((current_version, url))
+                      seen.add((current_version, url))
+
+          if not candidates:
+              raise SystemExit(f"No direct APKPure APK/XAPK download URL found for {package_name}.")
+
+          candidates.sort(key=lambda item: version_key(item[0]), reverse=True)
+          chosen = candidates[0]
+          if min_version and version_parts(chosen[0]) and version_key(chosen[0]) < version_key(min_version):
+              forced = [item for item in candidates if item[0] == min_version]
+              if not forced:
+                  raise SystemExit(
+                      f"APKPure latest {chosen[0]} is below {min_version}, "
+                      f"but no direct URL for {min_version} was found."
+                  )
+              chosen = forced[0]
+
+          print(f"{chosen[0]}\t{chosen[1]}")
+          PY
+          }
+
+          prepare_gplaydl_auth() {
+            mkdir -p "$HOME/.config/gplaydl"
+
+            if [ -n "${GPLAYDL_AUTH_JSON_B64:-}" ]; then
+              python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import pathlib
+          import time
+
+          raw = os.environ.get("GPLAYDL_AUTH_JSON_B64") or ""
+          text = raw.strip()
+          data = json.loads(base64.b64decode(text).decode("utf-8"))
+
+          data["_cached_at"] = time.time()
+          path = pathlib.Path.home() / ".config" / "gplaydl" / "auth-arm64.json"
+          path.write_text(json.dumps(data, indent=2))
+          PY
+              return
+            fi
+
+            gplaydl_auth --arch arm64
+          }
+
+          prepare_gplaydl_auth || true
+
+          should_build() {
+            [ "$BUILD_VARIANT" = "$1" ] || [ "$BUILD_VARIANT" = "both" ]
+          }
+
+          ensure_apkeep() {
+            if [ ! -x apkeep ]; then
               wget https://github.com/EFForg/apkeep/releases/download/1.0.0/apkeep-x86_64-unknown-linux-gnu -O apkeep
               chmod +x apkeep
-              ./apkeep -a com.zhiliaoapp.musically -d apk-pure tiktok_dl
+            fi
+          }
 
-              DOWNLOADED_FILE=$(find tiktok_dl -type f | head -n 1)
-              if unzip -l "$DOWNLOADED_FILE" | grep -q "\.apk$"; then
-                  echo "File is an XAPK containing splits. Extracting..."
-                  unzip -q "$DOWNLOADED_FILE" -d tiktok_dl_extracted
-                  find tiktok_dl_extracted -name "*.apk" -exec mv {} tiktok_dl/ \;
-                  rm "$DOWNLOADED_FILE"
-              fi
+          unpack_xapk_if_needed() {
+            DOWNLOAD_DIR="$1"
+            EXTRACT_DIR="$2"
+
+            DOWNLOADED_FILE=$(find "$DOWNLOAD_DIR" -maxdepth 1 -type f \( -name "*.xapk" -o -name "*.apks" \) | head -n 1)
+            if [ -n "$DOWNLOADED_FILE" ]; then
+              echo "File is an XAPK/APKS archive containing splits. Extracting..."
+              rm -rf "$EXTRACT_DIR"
+              mkdir -p "$EXTRACT_DIR"
+              unzip -q "$DOWNLOADED_FILE" -d "$EXTRACT_DIR"
+              find "$EXTRACT_DIR" -name "*.apk" -exec mv {} "$DOWNLOAD_DIR"/ \;
+              rm "$DOWNLOADED_FILE"
+            fi
+          }
+
+          find_base_apk() {
+            DOWNLOAD_DIR="$1"
+            find "$DOWNLOAD_DIR" -maxdepth 1 -type f -name "*.apk" \
+              ! -name "*-asset.apk" \
+              ! -name "*-df_*.apk" \
+              -exec ls -S {} + 2>/dev/null | head -n 1 || true
+          }
+
+          apk_version_name() {
+            APK="$1"
+            AAPT=$(ls "$ANDROID_SDK_ROOT"/build-tools/*/aapt | sort -V | tail -1)
+            "$AAPT" dump badging "$APK" | grep -oP "versionName='\K[^']+"
+          }
+
+          validate_downloaded_archive() {
+            OUT_FILE="$1"
+
+            if unzip -tq "$OUT_FILE"; then
+              return 0
+            fi
+
+            echo "Downloaded APKPure file is not a valid ZIP/APK/XAPK archive: $OUT_FILE"
+            file "$OUT_FILE" || true
+            head -c 32 "$OUT_FILE" | od -An -tx1 || true
+            rm -f "$OUT_FILE"
+            return 1
+          }
+
+          apkpure_direct_download() {
+            PACKAGE_NAME="$1"
+            DOWNLOAD_DIR="$2"
+            EXTRACT_DIR="$3"
+            MIN_VERSION="$4"
+
+            echo "Resolving direct APKPure download URL for $PACKAGE_NAME..."
+            RESOLVED=$(apkpure_resolve "$PACKAGE_NAME" "$MIN_VERSION")
+            VERSION_NAME=$(printf "%s" "$RESOLVED" | cut -f1)
+            DOWNLOAD_URL=$(printf "%s" "$RESOLVED" | cut -f2-)
+
+            if [ -z "$VERSION_NAME" ] || [ -z "$DOWNLOAD_URL" ]; then
+              echo "APKPure resolver returned an incomplete result for $PACKAGE_NAME."
+              return 1
+            fi
+
+            if printf "%s" "$DOWNLOAD_URL" | grep -q "/b/XAPK/"; then
+              OUT_FILE="$DOWNLOAD_DIR/${PACKAGE_NAME}-${VERSION_NAME}.xapk"
+            else
+              OUT_FILE="$DOWNLOAD_DIR/${PACKAGE_NAME}-${VERSION_NAME}.apk"
+            fi
+
+            echo "Downloading APKPure $PACKAGE_NAME v$VERSION_NAME from direct APK/XAPK URL..."
+            curl -L --fail --retry 3 \
+              -H "x-cv: 3172501" \
+              -H "x-sv: 29" \
+              -H "x-abis: arm64-v8a" \
+              -H "x-gp: 1" \
+              -H "User-Agent: apkeep/1.0.0" \
+              "$DOWNLOAD_URL" \
+              -o "$OUT_FILE"
+
+            validate_downloaded_archive "$OUT_FILE"
+            unpack_xapk_if_needed "$DOWNLOAD_DIR" "$EXTRACT_DIR"
+          }
+
+          apkpure_download() {
+            VARIANT="$1"
+            PACKAGE_NAME="$2"
+            DOWNLOAD_DIR="$3"
+            EXTRACT_DIR="$4"
+            APP_ID="$PACKAGE_NAME"
+
+            if [ "$VARIANT" = "asia" ]; then
+              MIN_VERSION="43.5.4"
+              rm -rf "$DOWNLOAD_DIR" "$EXTRACT_DIR"
+              mkdir -p "$DOWNLOAD_DIR"
+              apkpure_direct_download "$PACKAGE_NAME" "$DOWNLOAD_DIR" "$EXTRACT_DIR" "$MIN_VERSION"
+            else
+              rm -rf "$DOWNLOAD_DIR" "$EXTRACT_DIR"
+              mkdir -p "$DOWNLOAD_DIR"
+              ./apkeep -a "$APP_ID" -d apk-pure "$DOWNLOAD_DIR"
+              unpack_xapk_if_needed "$DOWNLOAD_DIR" "$EXTRACT_DIR"
+            fi
+          }
+
+          download_variant() {
+            VARIANT="$1"
+            PACKAGE_NAME="$2"
+            DOWNLOAD_DIR="tiktok_${VARIANT}_dl"
+            EXTRACT_DIR="tiktok_${VARIANT}_dl_extracted"
+
+            mkdir -p "$DOWNLOAD_DIR"
+
+            if gplaydl_download "$PACKAGE_NAME" -a arm64 --no-extras -o "$DOWNLOAD_DIR"; then
+              echo "gplaydl succeeded."
+            else
+              echo "gplaydl failed for $PACKAGE_NAME. Falling back to apkeep (APKPure)..."
+              ensure_apkeep
+              apkpure_download "$VARIANT" "$PACKAGE_NAME" "$DOWNLOAD_DIR" "$EXTRACT_DIR"
+            fi
+
+            # Base APK is the largest APK file in the download directory (not a split/config APK).
+            BASE_APK=$(find_base_apk "$DOWNLOAD_DIR")
+
+            if [ -z "$BASE_APK" ]; then
+              echo "Base APK not found for $PACKAGE_NAME!"
+              exit 1
+            fi
+
+            echo "Using $VARIANT base APK: $BASE_APK ($(du -sh "$BASE_APK" | cut -f1))"
+            cp "$BASE_APK" "raw-base-${VARIANT}.apk"
+          }
+
+          if should_build original; then
+            download_variant original com.zhiliaoapp.musically
           fi
 
-          # Base APK is the largest APK file in tiktok_dl (not a split/config APK)
-          BASE_APK=$(ls -S tiktok_dl/*.apk | head -n 1)
-
-          if [ -z "$BASE_APK" ]; then
-            echo "Base APK not found!"
-            exit 1
+          if should_build asia; then
+            download_variant asia com.ss.android.ugc.trill
           fi
-
-          echo "Using base APK: $BASE_APK ($(du -sh $BASE_APK | cut -f1))"
-          cp "$BASE_APK" raw-base.apk
-          echo "BASE_APK=$BASE_APK" >> $GITHUB_ENV
 
       - name: Build ReVanced Patches
         env:
@@ -86,66 +333,116 @@ jobs:
           echo "Downloading ReVanced CLI from: $URL"
           wget "$URL" -O revanced-cli.jar
 
-      - name: Patch APK with ReVanced
+      - name: Download APKEditor
         run: |
-          # Find the built patch bundle
-          PATCH_BUNDLE=$(find revanced-patches/patches/build/libs -name "patches-*.rvp" | head -n 1)
-          echo "Using patch bundle: $PATCH_BUNDLE"
-          echo "Raw base APK size: $(du -sh raw-base.apk | cut -f1)"
-
-          java -jar revanced-cli.jar patch raw-base.apk \
-            -p "$PATCH_BUNDLE" \
-            -b \
-            -o unsigned-tiktok.apk \
-            --exclusive \
-            -e "Feed filter" \
-            -e "Downloads" \
-            -e "SIM spoof" \
-            -e "Remember clear display" \
-            -e "Show seekbar" \
-            -e "Playback speed" \
-            -e "Disable login requirement"
-
-      - name: Merge Split APKs into Universal APK
-        run: |
-          mkdir splits_to_merge
-          cp unsigned-tiktok.apk splits_to_merge/base.apk
-          find tiktok_dl -name "config.*.apk" -exec cp {} splits_to_merge/ \;
-          
           echo "Downloading APKEditor..."
           wget https://github.com/REAndroid/APKEditor/releases/download/V1.4.1/APKEditor-1.4.1.jar -O APKEditor.jar
-          
-          echo "Merging APKs..."
-          java -jar APKEditor.jar m -i splits_to_merge -o unsigned-merged.apk
 
-      - name: Sign Universal APK
+      - name: Patch and merge APKs
         run: |
-          # Decode Keystore
+          PATCH_BUNDLE=$(find revanced-patches/patches/build/libs -name "patches-*.rvp" | head -n 1)
+          echo "Using patch bundle: $PATCH_BUNDLE"
+
+          should_build() {
+            [ "$BUILD_VARIANT" = "$1" ] || [ "$BUILD_VARIANT" = "both" ]
+          }
+
+          build_variant() {
+            VARIANT="$1"
+            RAW_BASE="raw-base-${VARIANT}.apk"
+            UNSIGNED_PATCHED="unsigned-tiktok-${VARIANT}.apk"
+            DOWNLOAD_DIR="tiktok_${VARIANT}_dl"
+            SPLITS_DIR="splits_to_merge_${VARIANT}"
+            MERGED_APK="unsigned-merged-${VARIANT}.apk"
+
+            echo "Raw $VARIANT base APK size: $(du -sh "$RAW_BASE" | cut -f1)"
+
+            java -jar revanced-cli.jar patch "$RAW_BASE" \
+              -p "$PATCH_BUNDLE" \
+              -b \
+              -o "$UNSIGNED_PATCHED" \
+              --exclusive \
+              -e "Feed filter" \
+              -e "Downloads" \
+              -e "SIM spoof" \
+              -e "Remember clear display" \
+              -e "Show seekbar" \
+              -e "Playback speed" \
+              -e "Disable login requirement"
+
+            mkdir "$SPLITS_DIR"
+            cp "$UNSIGNED_PATCHED" "$SPLITS_DIR/base.apk"
+            find "$DOWNLOAD_DIR" -name "config.*.apk" -exec cp {} "$SPLITS_DIR"/ \;
+
+            echo "Merging $VARIANT APKs..."
+            java -jar APKEditor.jar m -i "$SPLITS_DIR" -o "$MERGED_APK"
+          }
+
+          if should_build original; then
+            build_variant original
+          fi
+
+          if should_build asia; then
+            build_variant asia
+          fi
+
+      - name: Sign Universal APKs
+        run: |
           echo "${{ secrets.KEYSTORE_B64 }}" | base64 --decode > new.keystore
-          
-          # Find apksigner
+
           APKSIGNER=$(ls $ANDROID_SDK_ROOT/build-tools/*/apksigner | tail -1)
-          
-          # Sign the merged APK
-          $APKSIGNER sign --ks new.keystore \
-            --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
-            --ks-key-alias ${{ secrets.KEY_ALIAS }} \
-            --out tiktok-rv.apk unsigned-merged.apk
+
+          should_build() {
+            [ "$BUILD_VARIANT" = "$1" ] || [ "$BUILD_VARIANT" = "both" ]
+          }
+
+          sign_variant() {
+            VARIANT="$1"
+            $APKSIGNER sign --ks new.keystore \
+              --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
+              --ks-key-alias ${{ secrets.KEY_ALIAS }} \
+              --out "tiktok-rv-${VARIANT}.apk" "unsigned-merged-${VARIANT}.apk"
+          }
+
+          if should_build original; then
+            sign_variant original
+          fi
+
+          if should_build asia; then
+            sign_variant asia
+          fi
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           AAPT=$(ls $ANDROID_SDK_ROOT/build-tools/*/aapt | tail -1)
-          TT_VERSION=$($AAPT dump badging raw-base.apk | grep -oP "versionName='\K[^']+")
-          
+          ASSETS=()
+
+          {
+            echo "Automated build of tiktok-rv."
+            echo
+
+            if [ -f tiktok-rv-original.apk ]; then
+              ORIGINAL_VERSION=$($AAPT dump badging raw-base-original.apk | grep -oP "versionName='\K[^']+")
+              echo "- original: com.zhiliaoapp.musically v${ORIGINAL_VERSION}"
+              ASSETS+=(tiktok-rv-original.apk)
+            fi
+
+            if [ -f tiktok-rv-asia.apk ]; then
+              ASIA_VERSION=$($AAPT dump badging raw-base-asia.apk | grep -oP "versionName='\K[^']+")
+              echo "- asia: com.ss.android.ugc.trill v${ASIA_VERSION}"
+              ASSETS+=(tiktok-rv-asia.apk)
+            fi
+          } > release-notes.md
+
           TAG="v$(date +'%Y.%m.%d')"
           # Delete existing release with same tag if it exists (idempotent re-runs)
           gh release delete "$TAG" --yes 2>/dev/null || true
           git push origin --delete "$TAG" 2>/dev/null || true
-          gh release create "$TAG" tiktok-rv.apk \
+          gh release create "$TAG" "${ASSETS[@]}" \
             --title "tiktok-rv $TAG" \
-            --notes "Automated build of tiktok-rv based on TikTok v${TT_VERSION}."
+            --notes-file release-notes.md
             
           RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/$TAG --jq .id)
           echo "RELEASE_ID=$RELEASE_ID" >> $GITHUB_ENV
@@ -155,6 +452,6 @@ jobs:
         with:
           vt_api_key: ${{ secrets.VT_API_KEY }}
           github_token: ${{ secrets.GH_PAT }}
-          file_globs: tiktok-rv.apk
+          file_globs: tiktok-rv-*.apk
           release_id: ${{ env.RELEASE_ID }}
           update_release: true
