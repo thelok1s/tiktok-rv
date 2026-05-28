@@ -1,5 +1,7 @@
 # tiktok-rv [RU]
 
+[![VirusTotal Scan](https://img.shields.io/badge/VirusTotal-Scan_Result-blue?logo=virustotal)](https://github.com/thelok1s/tiktok-rv/releases/latest)
+
 Этот репозиторий содержит автоматизированный GitHub Actions пайплайн для загрузки последней версии tiktok, патчинга, подписи и публикации мода каждые две недели.
 
 ## Что не так с другими модами?
@@ -68,6 +70,8 @@
 ---
 
 # tiktok-rv [EN]
+
+[![VirusTotal Scan](https://img.shields.io/badge/VirusTotal-Scan_Result-blue?logo=virustotal)](https://github.com/thelok1s/tiktok-rv/releases/latest)
 
 This repository contains an automated GitHub Actions pipeline for downloading the latest version of TikTok, patching it, signing it, and publishing the mod every two weeks.
 

@@ -146,3 +146,15 @@ jobs:
           gh release create "$TAG" tiktok-rv.apk \
             --title "tiktok-rv $TAG" \
             --notes "Automated build of tiktok-rv based on TikTok v${TT_VERSION}."
+            
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/$TAG --jq .id)
+          echo "RELEASE_ID=$RELEASE_ID" >> $GITHUB_ENV
+
+      - name: VirusTotal Scan
+        uses: cssnr/virustotal-action@v1
+        with:
+          vt_api_key: ${{ secrets.VT_API_KEY }}
+          github_token: ${{ secrets.GH_PAT }}
+          file_globs: tiktok-rv.apk
+          release_id: ${{ env.RELEASE_ID }}
+          update_release: true
