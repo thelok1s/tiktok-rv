@@ -4,6 +4,16 @@ on:
   schedule:
     - cron: "0 0 */14 * *" # Run every 14 days
   workflow_dispatch: # Allow manual trigger
+    inputs:
+      variant:
+        description: "Which TikTok package variant to build"
+        required: false
+        default: "original"
+        type: choice
+        options:
+          - both
+          - original
+          - asia
 
 jobs:
   build:
@@ -12,6 +22,9 @@ jobs:
     permissions:
       contents: write # Needed to create a GitHub Release
       id-token: write
+
+    env:
+      BUILD_VARIANT: ${{ github.event.inputs.variant || 'original' }}
 
     steps:
       - name: Checkout repository
@@ -29,6 +42,7 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           $HOME/.local/bin/uv tool install gplaydl
+          $HOME/.local/bin/uv tool run gplaydl --version || true
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -36,41 +50,534 @@ jobs:
           java-version: "17"
           distribution: "temurin"
 
-      - name: Download TikTok APK
+      - name: Download TikTok APKs
+        env:
+          GPLAYDL_AUTH_JSON_B64: ${{ secrets.GPLAYDL_AUTH_JSON_B64 }}
+          GPLAYDL_DISPENSER: ${{ vars.GPLAYDL_DISPENSER }}
         run: |
-          mkdir -p tiktok_dl
-          mkdir -p $HOME/.config/gplaydl
-          echo "${{ secrets.GPLAYDL_AUTH_JSON_B64 }}" | base64 --decode > $HOME/.config/gplaydl/auth-arm64.json
+          GPLAYDL_PYTHON="$HOME/.local/share/uv/tools/gplaydl/bin/python"
 
-          echo "Attempting to download via gplaydl..."
-          if $HOME/.local/bin/uv tool run gplaydl download com.zhiliaoapp.musically -o tiktok_dl; then
-              echo "gplaydl succeeded."
-          else
-              echo "gplaydl failed. Falling back to apkeep (APKPure)..."
+          gplaydl_cmd() {
+            $HOME/.local/bin/uv tool run gplaydl "$@"
+          }
+
+          gplaydl_auth() {
+            if [ -n "${GPLAYDL_DISPENSER:-}" ]; then
+              gplaydl_cmd auth "$@" --dispenser "$GPLAYDL_DISPENSER"
+            else
+              gplaydl_cmd auth "$@"
+            fi
+          }
+
+          gplaydl_info() {
+            if [ -n "${GPLAYDL_DISPENSER:-}" ]; then
+              gplaydl_cmd info "$@" --dispenser "$GPLAYDL_DISPENSER"
+            else
+              gplaydl_cmd info "$@"
+            fi
+          }
+
+          gplaydl_list_splits() {
+            if [ -n "${GPLAYDL_DISPENSER:-}" ]; then
+              gplaydl_cmd list-splits "$@" --dispenser "$GPLAYDL_DISPENSER"
+            else
+              gplaydl_cmd list-splits "$@"
+            fi
+          }
+
+          gplaydl_download() {
+            if [ -n "${GPLAYDL_DISPENSER:-}" ]; then
+              gplaydl_cmd download "$@" --dispenser "$GPLAYDL_DISPENSER"
+            else
+              gplaydl_cmd download "$@"
+            fi
+          }
+
+          classify_gplaydl_failure() {
+            LABEL="$1"
+            STATUS="$2"
+            LOG_FILE="$3"
+
+            echo "gplaydl $LABEL failed with exit code $STATUS."
+            if grep -Eqi "401|Auth token expired|Token expired|Refreshing token" "$LOG_FILE"; then
+              echo "gplaydl diagnostic: Google Play reported auth expiry or HTTP 401."
+            elif grep -Eqi "404|App not found|not found|unavailable for this device" "$LOG_FILE"; then
+              echo "gplaydl diagnostic: Google Play reported HTTP 404/not available for this auth profile, device, IP, or account."
+            elif grep -Eqi "Delivery failed|No download URL|purchase" "$LOG_FILE"; then
+              echo "gplaydl diagnostic: metadata was reachable, but purchase/delivery/download URL resolution failed."
+            elif grep -Eqi "Could not obtain an auth token|Authentication failed|all profiles rejected|dispenser" "$LOG_FILE"; then
+              echo "gplaydl diagnostic: token acquisition from the Aurora dispenser failed."
+            else
+              echo "gplaydl diagnostic: failure type not recognized; see command output above."
+            fi
+          }
+
+          run_gplaydl_logged() {
+            LABEL="$1"
+            shift
+            SAFE_LABEL=$(printf "%s" "$LABEL" | tr -c "A-Za-z0-9_.-" "_")
+            LOG_FILE="${RUNNER_TEMP:-/tmp}/gplaydl-${SAFE_LABEL}.log"
+
+            case "$-" in
+              *e*) ERREXIT_WAS_SET=1 ;;
+              *) ERREXIT_WAS_SET=0 ;;
+            esac
+
+            set +e
+            "$@" >"$LOG_FILE" 2>&1
+            STATUS=$?
+            if [ "$ERREXIT_WAS_SET" = "1" ]; then
+              set -e
+            else
+              set +e
+            fi
+
+            cat "$LOG_FILE"
+            if [ "$STATUS" -ne 0 ]; then
+              classify_gplaydl_failure "$LABEL" "$STATUS" "$LOG_FILE"
+            fi
+
+            return "$STATUS"
+          }
+
+          print_gplaydl_auth_summary() {
+            python3 -c 'import json, pathlib, time; p = pathlib.Path.home() / ".config" / "gplaydl" / "auth-arm64.json"; data = json.loads(p.read_text()) if p.exists() else {}; device = data.get("deviceInfoProvider", {}); user_agent = device.get("userAgentString", ""); print("gplaydl auth summary:" if p.exists() else "gplaydl auth summary: no auth-arm64.json"); p.exists() and print("  cached_age_seconds=%d\n  isAnonymous=%s\n  mccMnc=%s\n  has_deviceConfigToken=%s\n  has_deviceCheckInConsistencyToken=%s\n  userAgent=%s" % (int(time.time() - data.get("_cached_at", 0)), data.get("isAnonymous"), device.get("mccMnc", "N/A"), bool(data.get("deviceConfigToken")), bool(data.get("deviceCheckInConsistencyToken")), user_agent[:180]))'
+          }
+
+          print_gplaydl_environment() {
+            echo "gplaydl version:"
+            gplaydl_cmd --version || true
+            if [ -n "${GPLAYDL_DISPENSER:-}" ]; then
+              echo "gplaydl dispenser source: GPLAYDL_DISPENSER repository variable."
+            else
+              echo "gplaydl dispenser source: public Aurora dispenser."
+            fi
+            if [ -n "${GPLAYDL_AUTH_JSON_B64:-}" ]; then
+              echo "gplaydl auth source: GPLAYDL_AUTH_JSON_B64 secret."
+            else
+              echo "gplaydl auth source: runtime Aurora auth."
+            fi
+          }
+
+          probe_gplaydl_dispenser_profiles() {
+            LIMIT="${1:-6}"
+            DISPENSER_ARG="${GPLAYDL_DISPENSER:-}"
+
+            if [ ! -x "$GPLAYDL_PYTHON" ]; then
+              echo "gplaydl dispenser probe: expected Python runtime not found at $GPLAYDL_PYTHON."
+              return 0
+            fi
+
+            "$GPLAYDL_PYTHON" - "$LIMIT" "$DISPENSER_ARG" <<'PY'
+          import sys
+
+          import httpx
+
+          from gplaydl.auth import DEFAULT_DISPENSER_URL
+          from gplaydl.profiles import get_priority_profiles
+
+          limit = int(sys.argv[1])
+          dispenser_url = sys.argv[2] or DEFAULT_DISPENSER_URL
+          headers = {
+              "User-Agent": "com.aurora.store-4.6.1-70",
+              "Content-Type": "application/json",
+          }
+
+          print(f"gplaydl dispenser probe: probing first {limit} arm64 profiles.")
+          for profile_key, profile in get_priority_profiles("arm64")[:limit]:
+              label = profile.get("UserReadableName", profile_key)
+              try:
+                  response = httpx.post(dispenser_url, json=profile, headers=headers, timeout=30)
+              except Exception as exc:
+                  print(f"gplaydl dispenser probe: {profile_key} ({label}) network_error={exc.__class__.__name__}")
+                  continue
+
+              content_type = response.headers.get("content-type", "unknown")
+              print(
+                  f"gplaydl dispenser probe: {profile_key} ({label}) "
+                  f"status={response.status_code} content_type={content_type}"
+              )
+
+              try:
+                  data = response.json()
+              except Exception:
+                  data = None
+
+              if response.status_code == 200 and isinstance(data, dict):
+                  print(
+                      "gplaydl dispenser probe: "
+                      f"{profile_key} has_authToken={bool(data.get('authToken'))} "
+                      f"isAnonymous={data.get('isAnonymous')} "
+                      f"has_deviceConfigToken={bool(data.get('deviceConfigToken'))}"
+                  )
+                  if not data.get("authToken"):
+                      safe_keys = ",".join(sorted(str(key) for key in data.keys())[:20])
+                      print(f"gplaydl dispenser probe: {profile_key} response_keys={safe_keys}")
+              else:
+                  preview = response.text.replace("\n", " ")[:240]
+                  print(f"gplaydl dispenser probe: {profile_key} response_preview={preview}")
+          PY
+          }
+
+          apkpure_resolve() {
+            PACKAGE_NAME="$1"
+            MIN_VERSION="${2:-}"
+            python3 - "$PACKAGE_NAME" "$MIN_VERSION" <<'PY'
+          import re
+          import sys
+          import urllib.request
+
+          package_name = sys.argv[1]
+          min_version = sys.argv[2]
+          api_url = (
+              "https://api.pureapk.com/m/v3/cms/app_version?"
+              f"hl=en-US&package_name={package_name}"
+          )
+          headers = {
+              "x-cv": "3172501",
+              "x-sv": "29",
+              "x-abis": "arm64-v8a",
+              "x-gp": "1",
+              "User-Agent": "apkeep/1.0.0",
+          }
+
+          def version_parts(value):
+              return [int(part) for part in re.findall(r"\d+", value or "")]
+
+          def version_key(value):
+              parts = version_parts(value)
+              return parts + [0] * (4 - len(parts))
+
+          def direct_urls(value):
+              urls = re.findall(r"https?://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+", value)
+              return [
+                  url for url in urls
+                  if "/b/TORRENT/" not in url and ("/b/XAPK/" in url or "/b/APK/" in url)
+              ]
+
+          req = urllib.request.Request(api_url, headers=headers)
+          with urllib.request.urlopen(req, timeout=30) as response:
+              raw = response.read()
+
+          candidates = []
+          seen = set()
+          current_version = ""
+          for item in re.findall(rb"[ -~]{4,}", raw):
+              text = item.decode("latin1")
+              version_match = re.search(r"\b\d+(?:\.\d+){1,3}\b", text)
+              if version_match and not text.startswith("http"):
+                  current_version = version_match.group(0)
+
+              for url in direct_urls(text):
+                  if current_version and (current_version, url) not in seen:
+                      candidates.append((current_version, url))
+                      seen.add((current_version, url))
+
+          if not candidates:
+              raise SystemExit(f"No direct APKPure APK/XAPK download URL found for {package_name}.")
+
+          candidates.sort(key=lambda item: version_key(item[0]), reverse=True)
+          chosen = candidates[0]
+          if min_version and version_parts(chosen[0]) and version_key(chosen[0]) < version_key(min_version):
+              forced = [item for item in candidates if item[0] == min_version]
+              if not forced:
+                  raise SystemExit(
+                      f"APKPure latest {chosen[0]} is below {min_version}, "
+                      f"but no direct URL for {min_version} was found."
+                  )
+              chosen = forced[0]
+
+          print(f"{chosen[0]}\t{chosen[1]}")
+          PY
+          }
+
+          prepare_gplaydl_auth() {
+            print_gplaydl_environment
+            mkdir -p "$HOME/.config/gplaydl"
+
+            if [ -n "${GPLAYDL_AUTH_JSON_B64:-}" ]; then
+              echo "Using cached gplaydl auth from GPLAYDL_AUTH_JSON_B64."
+              python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import pathlib
+          import time
+
+          raw = os.environ.get("GPLAYDL_AUTH_JSON_B64") or ""
+          text = raw.strip()
+          data = json.loads(base64.b64decode(text).decode("utf-8"))
+
+          data["_cached_at"] = time.time()
+          path = pathlib.Path.home() / ".config" / "gplaydl" / "auth-arm64.json"
+          path.write_text(json.dumps(data, indent=2))
+          PY
+              return
+            fi
+
+            for attempt in 1 2 3; do
+              echo "Attempting gplaydl anonymous auth (attempt $attempt/3)..."
+              if run_gplaydl_logged "auth-attempt-${attempt}" gplaydl_auth --arch arm64; then
+                return
+              fi
+
+              gplaydl_auth --clear || true
+              sleep $((attempt * 10))
+            done
+
+            echo "gplaydl anonymous auth failed after retries."
+            probe_gplaydl_dispenser_profiles 6 || true
+            return 1
+          }
+
+          sweep_gplaydl_profiles_for_asia() {
+            PACKAGE_NAME="$1"
+            DISPENSER_ARG="${GPLAYDL_DISPENSER:-}"
+
+            if [ ! -x "$GPLAYDL_PYTHON" ]; then
+              echo "gplaydl diagnostic: expected Python runtime not found at $GPLAYDL_PYTHON."
+              return 1
+            fi
+
+            "$GPLAYDL_PYTHON" - "$PACKAGE_NAME" "$DISPENSER_ARG" <<'PY'
+          import sys
+
+          import httpx
+
+          from gplaydl.api import AuthExpiredError, PlayAPIError, get_details
+          from gplaydl.auth import DEFAULT_DISPENSER_URL, save_auth
+          from gplaydl.profiles import get_priority_profiles
+
+          package_name = sys.argv[1]
+          dispenser_url = sys.argv[2] or DEFAULT_DISPENSER_URL
+          headers = {
+              "User-Agent": "com.aurora.store-4.6.1-70",
+              "Content-Type": "application/json",
+          }
+
+          for profile_key, profile in get_priority_profiles("arm64"):
+              label = profile.get("UserReadableName", profile_key)
+              print(f"gplaydl profile sweep: trying {profile_key} ({label})")
+              try:
+                  response = httpx.post(dispenser_url, json=profile, headers=headers, timeout=30)
+                  print(f"gplaydl profile sweep: dispenser_status={response.status_code}")
+                  if response.status_code != 200:
+                      continue
+
+                  auth = response.json()
+              except Exception as exc:
+                  print(f"gplaydl profile sweep: dispenser_error={exc.__class__.__name__}")
+                  continue
+
+              if not auth.get("authToken"):
+                  print("gplaydl profile sweep: no authToken in dispenser response")
+                  continue
+
+              try:
+                  details = get_details(package_name, auth)
+              except AuthExpiredError:
+                  print("gplaydl profile sweep: Google Play check failed with 401")
+                  continue
+              except PlayAPIError as exc:
+                  print(f"gplaydl profile sweep: Google Play check failed: {exc}")
+                  continue
+              except Exception as exc:
+                  print(f"gplaydl profile sweep: unexpected Google Play check error={exc.__class__.__name__}")
+                  continue
+
+              save_auth(auth, "arm64")
+              version = f"{details.version_string} ({details.version_code})"
+              print(f"gplaydl profile sweep: selected {profile_key} ({label}) for {package_name} v{version}")
+              raise SystemExit(0)
+
+          print(f"gplaydl profile sweep: no public Aurora profile could see {package_name}.")
+          raise SystemExit(1)
+          PY
+          }
+
+          ensure_asia_gplaydl_auth() {
+            PACKAGE_NAME="$1"
+
+            if [ -n "${GPLAYDL_AUTH_JSON_B64:-}" ]; then
+              echo "Skipping Asia profile sweep because cached gplaydl auth is set."
+              return 0
+            fi
+
+            echo "Checking whether current gplaydl auth can see $PACKAGE_NAME..."
+            if run_gplaydl_logged "asia-preflight-info" gplaydl_info "$PACKAGE_NAME" --arch arm64; then
+              echo "Current gplaydl auth can see $PACKAGE_NAME."
+              return 0
+            fi
+
+            echo "Current gplaydl auth cannot see $PACKAGE_NAME. Starting controlled public Aurora profile sweep..."
+            if sweep_gplaydl_profiles_for_asia "$PACKAGE_NAME"; then
+              print_gplaydl_auth_summary
+              return 0
+            fi
+
+            echo "No public Aurora profile in gplaydl could see $PACKAGE_NAME from this runner. APKPure fallback may still be used."
+            return 1
+          }
+
+          set +e
+          prepare_gplaydl_auth
+          PREPARE_GPLAYDL_STATUS=$?
+          set -e
+          if [ "$PREPARE_GPLAYDL_STATUS" -ne 0 ]; then
+            echo "gplaydl auth preparation failed; download commands may still retry auth and APKPure fallback remains available."
+          fi
+          print_gplaydl_auth_summary
+
+          should_build() {
+            [ "$BUILD_VARIANT" = "$1" ] || [ "$BUILD_VARIANT" = "both" ]
+          }
+
+          ensure_apkeep() {
+            if [ ! -x apkeep ]; then
               wget https://github.com/EFForg/apkeep/releases/download/1.0.0/apkeep-x86_64-unknown-linux-gnu -O apkeep
               chmod +x apkeep
-              ./apkeep -a com.zhiliaoapp.musically -d apk-pure tiktok_dl
+            fi
+          }
 
-              DOWNLOADED_FILE=$(find tiktok_dl -type f | head -n 1)
-              if unzip -l "$DOWNLOADED_FILE" | grep -q "\.apk$"; then
-                  echo "File is an XAPK containing splits. Extracting..."
-                  unzip -q "$DOWNLOADED_FILE" -d tiktok_dl_extracted
-                  find tiktok_dl_extracted -name "*.apk" -exec mv {} tiktok_dl/ \;
-                  rm "$DOWNLOADED_FILE"
-              fi
+          unpack_xapk_if_needed() {
+            DOWNLOAD_DIR="$1"
+            EXTRACT_DIR="$2"
+
+            DOWNLOADED_FILE=$(find "$DOWNLOAD_DIR" -maxdepth 1 -type f \( -name "*.xapk" -o -name "*.apks" \) | head -n 1)
+            if [ -n "$DOWNLOADED_FILE" ]; then
+              echo "File is an XAPK/APKS archive containing splits. Extracting..."
+              rm -rf "$EXTRACT_DIR"
+              mkdir -p "$EXTRACT_DIR"
+              unzip -q "$DOWNLOADED_FILE" -d "$EXTRACT_DIR"
+              find "$EXTRACT_DIR" -name "*.apk" -exec mv {} "$DOWNLOAD_DIR"/ \;
+              rm "$DOWNLOADED_FILE"
+            fi
+          }
+
+          find_base_apk() {
+            DOWNLOAD_DIR="$1"
+            ls -S "$DOWNLOAD_DIR"/*.apk 2>/dev/null | head -n 1 || true
+          }
+
+          apk_version_name() {
+            APK="$1"
+            AAPT=$(ls "$ANDROID_SDK_ROOT"/build-tools/*/aapt | sort -V | tail -1)
+            "$AAPT" dump badging "$APK" | grep -oP "versionName='\K[^']+"
+          }
+
+          validate_downloaded_archive() {
+            OUT_FILE="$1"
+
+            if unzip -tq "$OUT_FILE"; then
+              return 0
+            fi
+
+            echo "Downloaded APKPure file is not a valid ZIP/APK/XAPK archive: $OUT_FILE"
+            file "$OUT_FILE" || true
+            head -c 32 "$OUT_FILE" | od -An -tx1 || true
+            rm -f "$OUT_FILE"
+            return 1
+          }
+
+          apkpure_direct_download() {
+            PACKAGE_NAME="$1"
+            DOWNLOAD_DIR="$2"
+            EXTRACT_DIR="$3"
+            MIN_VERSION="$4"
+
+            echo "Resolving direct APKPure download URL for $PACKAGE_NAME..."
+            RESOLVED=$(apkpure_resolve "$PACKAGE_NAME" "$MIN_VERSION")
+            VERSION_NAME=$(printf "%s" "$RESOLVED" | cut -f1)
+            DOWNLOAD_URL=$(printf "%s" "$RESOLVED" | cut -f2-)
+
+            if [ -z "$VERSION_NAME" ] || [ -z "$DOWNLOAD_URL" ]; then
+              echo "APKPure resolver returned an incomplete result for $PACKAGE_NAME."
+              return 1
+            fi
+
+            if printf "%s" "$DOWNLOAD_URL" | grep -q "/b/XAPK/"; then
+              OUT_FILE="$DOWNLOAD_DIR/${PACKAGE_NAME}-${VERSION_NAME}.xapk"
+            else
+              OUT_FILE="$DOWNLOAD_DIR/${PACKAGE_NAME}-${VERSION_NAME}.apk"
+            fi
+
+            echo "Downloading APKPure $PACKAGE_NAME v$VERSION_NAME from direct APK/XAPK URL..."
+            curl -L --fail --retry 3 \
+              -H "x-cv: 3172501" \
+              -H "x-sv: 29" \
+              -H "x-abis: arm64-v8a" \
+              -H "x-gp: 1" \
+              -H "User-Agent: apkeep/1.0.0" \
+              "$DOWNLOAD_URL" \
+              -o "$OUT_FILE"
+
+            validate_downloaded_archive "$OUT_FILE"
+            unpack_xapk_if_needed "$DOWNLOAD_DIR" "$EXTRACT_DIR"
+          }
+
+          apkpure_download() {
+            VARIANT="$1"
+            PACKAGE_NAME="$2"
+            DOWNLOAD_DIR="$3"
+            EXTRACT_DIR="$4"
+            APP_ID="$PACKAGE_NAME"
+
+            if [ "$VARIANT" = "asia" ]; then
+              MIN_VERSION="43.5.4"
+              rm -rf "$DOWNLOAD_DIR" "$EXTRACT_DIR"
+              mkdir -p "$DOWNLOAD_DIR"
+              apkpure_direct_download "$PACKAGE_NAME" "$DOWNLOAD_DIR" "$EXTRACT_DIR" "$MIN_VERSION"
+            else
+              rm -rf "$DOWNLOAD_DIR" "$EXTRACT_DIR"
+              mkdir -p "$DOWNLOAD_DIR"
+              ./apkeep -a "$APP_ID" -d apk-pure "$DOWNLOAD_DIR"
+              unpack_xapk_if_needed "$DOWNLOAD_DIR" "$EXTRACT_DIR"
+            fi
+          }
+
+          download_variant() {
+            VARIANT="$1"
+            PACKAGE_NAME="$2"
+            DOWNLOAD_DIR="tiktok_${VARIANT}_dl"
+            EXTRACT_DIR="tiktok_${VARIANT}_dl_extracted"
+
+            mkdir -p "$DOWNLOAD_DIR"
+
+            echo "Attempting to download $PACKAGE_NAME via gplaydl..."
+            if [ "$VARIANT" = "asia" ]; then
+              ensure_asia_gplaydl_auth "$PACKAGE_NAME" || true
+            fi
+
+            run_gplaydl_logged "info-${VARIANT}" gplaydl_info "$PACKAGE_NAME" --arch arm64 || true
+            run_gplaydl_logged "list-splits-${VARIANT}" gplaydl_list_splits "$PACKAGE_NAME" --arch arm64 || true
+
+            if run_gplaydl_logged "download-${VARIANT}" gplaydl_download "$PACKAGE_NAME" -a arm64 -o "$DOWNLOAD_DIR"; then
+              echo "gplaydl succeeded."
+            else
+              echo "gplaydl failed for $PACKAGE_NAME. Falling back to apkeep (APKPure)..."
+              ensure_apkeep
+              apkpure_download "$VARIANT" "$PACKAGE_NAME" "$DOWNLOAD_DIR" "$EXTRACT_DIR"
+            fi
+
+            # Base APK is the largest APK file in the download directory (not a split/config APK).
+            BASE_APK=$(find_base_apk "$DOWNLOAD_DIR")
+
+            if [ -z "$BASE_APK" ]; then
+              echo "Base APK not found for $PACKAGE_NAME!"
+              exit 1
+            fi
+
+            echo "Using $VARIANT base APK: $BASE_APK ($(du -sh "$BASE_APK" | cut -f1))"
+            cp "$BASE_APK" "raw-base-${VARIANT}.apk"
+          }
+
+          if should_build original; then
+            download_variant original com.zhiliaoapp.musically
           fi
 
-          # Base APK is the largest APK file in tiktok_dl (not a split/config APK)
-          BASE_APK=$(ls -S tiktok_dl/*.apk | head -n 1)
-
-          if [ -z "$BASE_APK" ]; then
-            echo "Base APK not found!"
-            exit 1
+          if should_build asia; then
+            download_variant asia com.ss.android.ugc.trill
           fi
-
-          echo "Using base APK: $BASE_APK ($(du -sh $BASE_APK | cut -f1))"
-          cp "$BASE_APK" raw-base.apk
-          echo "BASE_APK=$BASE_APK" >> $GITHUB_ENV
 
       - name: Build ReVanced Patches
         env:
@@ -86,63 +593,113 @@ jobs:
           echo "Downloading ReVanced CLI from: $URL"
           wget "$URL" -O revanced-cli.jar
 
-      - name: Patch APK with ReVanced
+      - name: Download APKEditor
         run: |
-          # Find the built patch bundle
-          PATCH_BUNDLE=$(find revanced-patches/patches/build/libs -name "patches-*.rvp" | head -n 1)
-          echo "Using patch bundle: $PATCH_BUNDLE"
-          echo "Raw base APK size: $(du -sh raw-base.apk | cut -f1)"
-
-          java -jar revanced-cli.jar patch raw-base.apk \
-            -p "$PATCH_BUNDLE" \
-            -b \
-            -o unsigned-tiktok.apk \
-            --exclusive \
-            -e "Feed filter" \
-            -e "Downloads" \
-            -e "SIM spoof" \
-            -e "Remember clear display" \
-            -e "Show seekbar" \
-            -e "Playback speed" \
-            -e "Disable login requirement"
-
-      - name: Merge Split APKs into Universal APK
-        run: |
-          mkdir splits_to_merge
-          cp unsigned-tiktok.apk splits_to_merge/base.apk
-          find tiktok_dl -name "config.*.apk" -exec cp {} splits_to_merge/ \;
-          
           echo "Downloading APKEditor..."
           wget https://github.com/REAndroid/APKEditor/releases/download/V1.4.1/APKEditor-1.4.1.jar -O APKEditor.jar
-          
-          echo "Merging APKs..."
-          java -jar APKEditor.jar m -i splits_to_merge -o unsigned-merged.apk
 
-      - name: Sign Universal APK
+      - name: Patch and merge APKs
         run: |
-          # Decode Keystore
+          PATCH_BUNDLE=$(find revanced-patches/patches/build/libs -name "patches-*.rvp" | head -n 1)
+          echo "Using patch bundle: $PATCH_BUNDLE"
+
+          should_build() {
+            [ "$BUILD_VARIANT" = "$1" ] || [ "$BUILD_VARIANT" = "both" ]
+          }
+
+          build_variant() {
+            VARIANT="$1"
+            RAW_BASE="raw-base-${VARIANT}.apk"
+            UNSIGNED_PATCHED="unsigned-tiktok-${VARIANT}.apk"
+            DOWNLOAD_DIR="tiktok_${VARIANT}_dl"
+            SPLITS_DIR="splits_to_merge_${VARIANT}"
+            MERGED_APK="unsigned-merged-${VARIANT}.apk"
+
+            echo "Raw $VARIANT base APK size: $(du -sh "$RAW_BASE" | cut -f1)"
+
+            java -jar revanced-cli.jar patch "$RAW_BASE" \
+              -p "$PATCH_BUNDLE" \
+              -b \
+              -o "$UNSIGNED_PATCHED" \
+              --exclusive \
+              -e "Feed filter" \
+              -e "Downloads" \
+              -e "SIM spoof" \
+              -e "Remember clear display" \
+              -e "Show seekbar" \
+              -e "Playback speed" \
+              -e "Disable login requirement"
+
+            mkdir "$SPLITS_DIR"
+            cp "$UNSIGNED_PATCHED" "$SPLITS_DIR/base.apk"
+            find "$DOWNLOAD_DIR" -name "config.*.apk" -exec cp {} "$SPLITS_DIR"/ \;
+
+            echo "Merging $VARIANT APKs..."
+            java -jar APKEditor.jar m -i "$SPLITS_DIR" -o "$MERGED_APK"
+          }
+
+          if should_build original; then
+            build_variant original
+          fi
+
+          if should_build asia; then
+            build_variant asia
+          fi
+
+      - name: Sign Universal APKs
+        run: |
           echo "${{ secrets.KEYSTORE_B64 }}" | base64 --decode > new.keystore
-          
-          # Find apksigner
+
           APKSIGNER=$(ls $ANDROID_SDK_ROOT/build-tools/*/apksigner | tail -1)
-          
-          # Sign the merged APK
-          $APKSIGNER sign --ks new.keystore \
-            --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
-            --ks-key-alias ${{ secrets.KEY_ALIAS }} \
-            --out tiktok-rv.apk unsigned-merged.apk
+
+          should_build() {
+            [ "$BUILD_VARIANT" = "$1" ] || [ "$BUILD_VARIANT" = "both" ]
+          }
+
+          sign_variant() {
+            VARIANT="$1"
+            $APKSIGNER sign --ks new.keystore \
+              --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
+              --ks-key-alias ${{ secrets.KEY_ALIAS }} \
+              --out "tiktok-rv-${VARIANT}.apk" "unsigned-merged-${VARIANT}.apk"
+          }
+
+          if should_build original; then
+            sign_variant original
+          fi
+
+          if should_build asia; then
+            sign_variant asia
+          fi
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           AAPT=$(ls $ANDROID_SDK_ROOT/build-tools/*/aapt | tail -1)
-          TT_VERSION=$($AAPT dump badging raw-base.apk | grep -oP "versionName='\K[^']+")
-          
+          ASSETS=()
+
+          {
+            echo "Automated build of tiktok-rv."
+            echo
+
+            if [ -f tiktok-rv-original.apk ]; then
+              ORIGINAL_VERSION=$($AAPT dump badging raw-base-original.apk | grep -oP "versionName='\K[^']+")
+              echo "- original: com.zhiliaoapp.musically v${ORIGINAL_VERSION}"
+              ASSETS+=(tiktok-rv-original.apk)
+            fi
+
+            if [ -f tiktok-rv-asia.apk ]; then
+              ASIA_VERSION=$($AAPT dump badging raw-base-asia.apk | grep -oP "versionName='\K[^']+")
+              echo "- asia: com.ss.android.ugc.trill v${ASIA_VERSION}"
+              ASSETS+=(tiktok-rv-asia.apk)
+            fi
+          } > release-notes.md
+
           TAG="v$(date +'%Y.%m.%d')"
           # Delete existing release with same tag if it exists (idempotent re-runs)
           gh release delete "$TAG" --yes 2>/dev/null || true
           git push origin --delete "$TAG" 2>/dev/null || true
-          gh release create "$TAG" tiktok-rv.apk \
+          gh release create "$TAG" "${ASSETS[@]}" \
             --title "tiktok-rv $TAG" \
-            --notes "Automated build of tiktok-rv based on TikTok v${TT_VERSION}."
+            --notes-file release-notes.md

@@ -38,18 +38,17 @@
 
 ### Pipeline выполняет следующие шаги:
 
-1. Автоматически получает последние split APK-файлы TikTok напрямую из Google Play Store с помощью  [gplaydl](https://github.com/rehmatworks/gplaydl).
-2. Использует Python-скрипт для парсинга AndroidManifest.xml базового APK и удаления android:isSplitRequired="true" вместе с metadata fused-модулей, обходя ошибку обязательных split APK без необходимости полной перекомпиляции ресурсов через apktool.
-3. Компилирует модифицированное дерево исходников revanced-patches, включённое в этот репозиторий.
-4. Использует [revanced-cli](https://github.com/revanced/revanced-cli) для внедрения патчей в байткод stripped Base APK.
-5. Подписывает пропатченный Base APK и оригинальные configuration split APK (en, arm64_v8a, xxhdpi) с помощью PKCS12 keystore и упаковывает их в ZIP-архив, который затем загружается в GitHub Releases.
-
+1. Автоматически получает последние split APK-файлы TikTok напрямую из Google Play Store с помощью [gplaydl](https://github.com/rehmatworks/gplaydl). По умолчанию собираются обе ветки: `original` (`com.zhiliaoapp.musically`) и `asia` (`com.ss.android.ugc.trill`).
+2. Компилирует модифицированное дерево исходников revanced-patches, включённое в этот репозиторий.
+3. Использует [revanced-cli](https://github.com/revanced/revanced-cli) для внедрения патчей в байткод stripped Base APK.
+4. Объединяет пропатченный base APK с configuration split APK через [APKEditor](https://github.com/REAndroid/APKEditor), получая Universal APK для каждой выбранной ветки.
+5. Подписывает итоговые Universal APK с помощью PKCS12 keystore и загружает их в GitHub Releases. При ручном запуске Actions доступен выбор `both`, `original` или `asia`.
 
 ## Установка (Installation)
 
 Так как приложение теперь собирается в единый Universal APK, установка стала максимально простой:
 
-1. Скачайте файл `tiktok-rv.apk` из [Releases](../../releases).
+1. Скачайте файл `tiktok-rv-original.apk` или `tiktok-rv-asia.apk` из [Releases](../../releases).
 2. Запустите скачанный файл и подтвердите установку. (Возможно, потребуется разрешить установку из неизвестных источников в настройках вашего устройства).
 
 Вам больше не нужны SAI (Split APKs Installer) или ADB для установки нашего мода!
@@ -106,17 +105,17 @@ The modified TikTok application permanently forces the following features (no se
 
 ### The Pipeline executes the following steps:
 
-1. Automatically fetches the latest split APKs for TikTok directly from the Google Play Store using [gplaydl](https://github.com/rehmatworks/gplaydl).
-2. Uses a Python script to parse the `AndroidManifest.xml` of the base APK and removes `android:isSplitRequired="true"` along with fused module metadata. This bypasses the mandatory split APK error without needing full resource recompilation via `apktool`.
-3. Compiles the modified `revanced-patches` source tree included in this repository.
-4. Uses [revanced-cli](https://github.com/revanced/revanced-cli) to inject patches into the bytecode of the stripped Base APK.
-5. Signs the patched Base APK and original configuration split APKs (en, arm64_v8a, xxhdpi) using a PKCS12 keystore and packages them into a ZIP archive uploaded to GitHub Releases.
+1. Automatically fetches the latest split APKs for TikTok directly from the Google Play Store using [gplaydl](https://github.com/rehmatworks/gplaydl). By default, both branches are built: `original` (`com.zhiliaoapp.musically`) and `asia` (`com.ss.android.ugc.trill`).
+2. Compiles the modified `revanced-patches` source tree included in this repository.
+3. Uses [revanced-cli](https://github.com/revanced/revanced-cli) to inject patches into the bytecode of the stripped Base APK.
+4. Merges the patched base APK with configuration split APKs through [APKEditor](https://github.com/REAndroid/APKEditor), producing a Universal APK for each selected branch.
+5. Signs the final Universal APKs using a PKCS12 keystore and uploads them to GitHub Releases. When running the Action manually, you can choose `both`, `original`, or `asia`.
 
 ## Installation
 
 Because the app is now built as a single Universal APK, the installation is very simple:
 
-1. Download the `tiktok-rv.apk` file from [Releases](../../releases).
+1. Download `tiktok-rv-original.apk` or `tiktok-rv-asia.apk` from [Releases](../../releases).
 2. Open the downloaded file and confirm the installation. (You may need to allow installation from unknown sources in your device settings).
 
 You no longer need SAI (Split APKs Installer) or ADB to install this mod!
