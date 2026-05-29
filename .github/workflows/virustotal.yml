@@ -27,7 +27,7 @@ jobs:
           
           if [ -z "$TAG" ]; then
             echo "No tag provided. Fetching latest release..."
-            TAG=$(gh release view --json tagName -jq .tagName)
+            TAG=$(gh release view --json tagName -q .tagName)
           fi
           
           echo "Using tag: $TAG"
