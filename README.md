@@ -33,7 +33,7 @@
 * **Отключение требования входа:** Обходит обязательный экран входа/регистрации, позволяя сразу просматривать контент без аккаунта.
 * **Фильтр ленты:** Удаляет рекламу из видеоленты.
 * **Загрузки:** Принудительно включает скачивание всех видео (вероятно, функция сломана со стороны сервера), удаляет watermark TikTok из скачанных видео и изменяет директорию загрузки по умолчанию на /sdcard/Pictures/TikTok.
-* **Скорость воспроизведения:** Добавляет управление скоростью воспроизведения (модифицировано для поддержки TikTok v45.3.3+ через обновление сигнатуры метода getCurrentAweme на LJII()).
+* **Скорость воспроизведения:** Добавляет управление скоростью воспроизведения (модифицировано для поддержки TikTok v45.4.3+ через обновление сигнатуры метода getCurrentAweme на LJII()).
 * **Отображение seekbar:** Принудительно показывает seekbar видео, позволяя перематывать любые ролики.
 * **Запоминание Clear Display:** Сохраняет выбранный режим «Clear Display» между видео.
 * **Подмена SIM-региона:** Подменяет регион SIM-карты (по умолчанию — США) для обхода региональных ограничений контента. Загрузка контента работает.
@@ -54,6 +54,21 @@
 2. Запустите скачанный файл и подтвердите установку. (Возможно, потребуется разрешить установку из неизвестных источников в настройках вашего устройства).
 
 Вам больше не нужны SAI (Split APKs Installer) или ADB для установки нашего мода!
+
+## Вход в аккаунт
+
+> [!IMPORTANT]
+> Из-за патча **«Отключение требования входа»** обычные кнопки входа могут не работать или приводить к ошибке. Чтобы войти в существующий аккаунт, используйте поток **восстановления аккаунта**.
+
+Если при входе вы видите ошибку — войдите через кнопку **«Recover Your Account»** («Восстановить аккаунт»):
+
+1. Нажмите **«Need help logging in?»** («Нужна помощь со входом?»).
+2. Введите свою **почту**, **имя пользователя** или **номер телефона**.
+3. Введите **код**, который придёт вам на почту или по **SMS**.
+4. Когда приложение покажет сообщение об успешном входе — **перезапустите приложение**.
+
+> [!TIP]
+> После перезапуска вы будете авторизованы. Если вход всё ещё не подхватился, повторите шаги ещё раз и убедитесь, что код введён до истечения его срока действия.
 
 ## Лицензия
 
@@ -102,7 +117,7 @@ The modified TikTok application permanently forces the following features (no se
 * **Disable login requirement:** Bypasses the mandatory login/sign-up screen, allowing you to view content immediately without an account.
 * **Feed filter:** Removes advertisements from the video feed.
 * **Downloads:** Force-enables downloading for all videos, removes the TikTok watermark from downloaded videos, and changes the default download directory to `/sdcard/Pictures/TikTok`.
-* **Playback speed:** Adds playback speed controls (modified to support TikTok v45.3.3+ by updating the `getCurrentAweme` method signature to `LJII()`).
+* **Playback speed:** Adds playback speed controls (modified to support TikTok v45.4.3+ by updating the `getCurrentAweme` method signature to `LJII()`).
 * **Show seekbar:** Forces the video seekbar to be visible, allowing you to scrub through any video.
 * **Remember Clear Display:** Saves your chosen "Clear Display" mode across videos.
 * **SIM spoof:** Spoofs the SIM card region (defaults to USA) to bypass regional content restrictions. Content loading works.
@@ -123,6 +138,21 @@ Because the app is now built as a single Universal APK, the installation is very
 2. Open the downloaded file and confirm the installation. (You may need to allow installation from unknown sources in your device settings).
 
 You no longer need SAI (Split APKs Installer) or ADB to install this mod!
+
+## Logging in
+
+> [!IMPORTANT]
+> Because of the **Disable login requirement** patch, the normal login buttons may not work or may throw an error. To sign in to an existing account, use the **account recovery** flow instead.
+
+If you hit an error while logging in, sign in through the **"Recover Your Account"** button:
+
+1. Tap **"Need help logging in?"**.
+2. Enter your **email**, **username**, or **phone number**.
+3. Enter the **code** sent to your email or via **SMS**.
+4. Once the app shows a **success message**, **restart the app**.
+
+> [!TIP]
+> After restarting, you'll be signed in. If the session still isn't picked up, repeat the steps and make sure you enter the code before it expires.
 
 ## License
 
