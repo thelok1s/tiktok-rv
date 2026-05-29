@@ -76,13 +76,20 @@ jobs:
             echo "HTTP Status: $HTTP_STATUS"
             echo "VirusTotal Response: $JSON_BODY"
             
-            ANALYSIS_ID=$(echo "$JSON_BODY" | jq -r .data.id)
-            if [ "$HTTP_STATUS" -eq 413 ]; then
-                echo "Error: File is too large for VirusTotal API (413)."
-                echo "- **$apk**: ⚠️ File too large for automated scanning (>200MB)" >> vt_links.txt
+            if [ "$HTTP_STATUS" -ne 200 ]; then
+                if [ "$HTTP_STATUS" -eq 413 ]; then
+                    echo "Error: File is too large for VirusTotal API (413)."
+                    echo "- **$apk**: ⚠️ File too large for automated scanning (>200MB)" >> vt_links.txt
+                else
+                    echo "Error: Upload to VirusTotal failed with status $HTTP_STATUS!"
+                    echo "- **$apk**: ⚠️ Automated scan failed to start" >> vt_links.txt
+                fi
                 continue
-            elif [ "$ANALYSIS_ID" = "null" ] || [ -z "$ANALYSIS_ID" ] || [ "$HTTP_STATUS" -ne 200 ]; then
-                echo "Error: Upload to VirusTotal failed with status $HTTP_STATUS!"
+            fi
+            
+            ANALYSIS_ID=$(echo "$JSON_BODY" | jq -r .data.id 2>/dev/null)
+            if [ "$ANALYSIS_ID" = "null" ] || [ -z "$ANALYSIS_ID" ]; then
+                echo "Error: Upload to VirusTotal failed to return an analysis ID!"
                 echo "- **$apk**: ⚠️ Automated scan failed to start" >> vt_links.txt
                 continue
             fi
