@@ -51,6 +51,8 @@ jobs:
         run: |
           echo "" > vt_links.txt
           echo "### 🛡️ VirusTotal Scan Results" >> vt_links.txt
+          echo "_Note: It may take a few minutes for VirusTotal to process large files before the links become active. If a link says 'Item not found', please refresh in 5-10 minutes._" >> vt_links.txt
+          echo "" >> vt_links.txt
           
           for apk in tiktok-rv-*.apk; do
             if [ ! -f "$apk" ]; then
@@ -66,18 +68,29 @@ jobs:
               continue
             fi
             
-            echo "Uploading $apk (this may take a minute)..."
-            curl -s -F "file=@$apk" -H "x-apikey: $VT_API_KEY" "$UPLOAD_URL" > /dev/null
+            echo "Uploading $apk to $UPLOAD_URL (this may take a minute)..."
+            RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -F "file=@$apk" -H "x-apikey: $VT_API_KEY" "$UPLOAD_URL")
+            HTTP_STATUS=$(echo "$RESPONSE" | tail -n1 | cut -d: -f2)
+            JSON_BODY=$(echo "$RESPONSE" | sed '$d')
+            
+            echo "HTTP Status: $HTTP_STATUS"
+            echo "VirusTotal Response: $JSON_BODY"
+            
+            ANALYSIS_ID=$(echo "$JSON_BODY" | jq -r .data.id)
+            if [ "$ANALYSIS_ID" = "null" ] || [ -z "$ANALYSIS_ID" ] || [ "$HTTP_STATUS" -ne 200 ]; then
+                echo "Error: Upload to VirusTotal failed!"
+                continue
+            fi
             
             SHA256=$(sha256sum "$apk" | awk '{print $1}')
             VT_LINK="https://www.virustotal.com/gui/file/$SHA256"
             
             echo "- **$apk**: [View Analysis]($VT_LINK)" >> vt_links.txt
-            echo "Upload complete. Link: $VT_LINK"
+            echo "Upload complete! ID: $ANALYSIS_ID"
+            echo "Link: $VT_LINK"
           done
           
           echo "Appending links to release notes for $TAG..."
-          # Fetch current notes, append new links, and update
           gh release view "$TAG" --json body -q .body > current_notes.md
           cat vt_links.txt >> current_notes.md
           gh release edit "$TAG" --notes-file current_notes.md
