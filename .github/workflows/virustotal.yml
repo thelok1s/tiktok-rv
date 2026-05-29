@@ -43,11 +43,41 @@ jobs:
           echo "Downloading assets for release ${{ steps.release_info.outputs.tag }}..."
           gh release download ${{ steps.release_info.outputs.tag }} --pattern "tiktok-rv-*.apk"
 
-      - name: VirusTotal Scan
-        uses: cssnr/virustotal-action@v1
-        with:
-          vt_api_key: ${{ secrets.VT_API_KEY }}
-          github_token: ${{ secrets.GH_PAT }}
-          file_globs: tiktok-rv-*.apk
-          release_id: ${{ steps.release_info.outputs.id }}
-          update_release: true
+      - name: VirusTotal Upload and Update Release
+        env:
+          VT_API_KEY: ${{ secrets.VT_API_KEY }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          TAG: ${{ steps.release_info.outputs.tag }}
+        run: |
+          echo "" > vt_links.txt
+          echo "### 🛡️ VirusTotal Scan Results" >> vt_links.txt
+          
+          for apk in tiktok-rv-*.apk; do
+            if [ ! -f "$apk" ]; then
+              echo "No APKs found to upload."
+              continue
+            fi
+            
+            echo "Requesting upload URL for $apk..."
+            UPLOAD_URL=$(curl -s -H "x-apikey: $VT_API_KEY" https://www.virustotal.com/api/v3/files/upload_url | jq -r .data)
+            
+            if [ "$UPLOAD_URL" = "null" ] || [ -z "$UPLOAD_URL" ]; then
+              echo "Failed to get upload URL from VirusTotal!"
+              continue
+            fi
+            
+            echo "Uploading $apk (this may take a minute)..."
+            curl -s -F "file=@$apk" -H "x-apikey: $VT_API_KEY" "$UPLOAD_URL" > /dev/null
+            
+            SHA256=$(sha256sum "$apk" | awk '{print $1}')
+            VT_LINK="https://www.virustotal.com/gui/file/$SHA256"
+            
+            echo "- **$apk**: [View Analysis]($VT_LINK)" >> vt_links.txt
+            echo "Upload complete. Link: $VT_LINK"
+          done
+          
+          echo "Appending links to release notes for $TAG..."
+          # Fetch current notes, append new links, and update
+          gh release view "$TAG" --json body -q .body > current_notes.md
+          cat vt_links.txt >> current_notes.md
+          gh release edit "$TAG" --notes-file current_notes.md
