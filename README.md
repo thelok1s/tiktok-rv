@@ -1,6 +1,6 @@
 # tiktok-rv [RU]
 
-[![VirusTotal Scan](https://img.shields.io/badge/VirusTotal-Scan_Result-blue?logo=virustotal)](https://github.com/thelok1s/tiktok-rv/releases/latest)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/thelok1s/tiktok-rv/tiktok-patcher.yml?branch=main&label=Build)](https://github.com/thelok1s/tiktok-rv/actions/workflows/tiktok-patcher.yml) [![Latest Release](https://img.shields.io/github/v/release/thelok1s/tiktok-rv)](https://github.com/thelok1s/tiktok-rv/releases/latest) [![Downloads](https://img.shields.io/github/downloads/thelok1s/tiktok-rv/total)](https://github.com/thelok1s/tiktok-rv/releases) [![VirusTotal Scan](https://img.shields.io/badge/VirusTotal-Scan_Result-blue?logo=virustotal)](https://github.com/thelok1s/tiktok-rv/releases/latest)
 
 Этот репозиторий содержит автоматизированный GitHub Actions пайплайн для загрузки последней версии tiktok, патчинга, подписи и публикации мода каждые две недели.
 
@@ -70,7 +70,7 @@
 
 # tiktok-rv [EN]
 
-[![VirusTotal Scan](https://img.shields.io/badge/VirusTotal-Scan_Result-blue?logo=virustotal)](https://github.com/thelok1s/tiktok-rv/releases/latest)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/thelok1s/tiktok-rv/tiktok-patcher.yml?branch=main&label=Build)](https://github.com/thelok1s/tiktok-rv/actions/workflows/tiktok-patcher.yml) [![Latest Release](https://img.shields.io/github/v/release/thelok1s/tiktok-rv)](https://github.com/thelok1s/tiktok-rv/releases/latest) [![Downloads](https://img.shields.io/github/downloads/thelok1s/tiktok-rv/total)](https://github.com/thelok1s/tiktok-rv/releases) [![VirusTotal Scan](https://img.shields.io/badge/VirusTotal-Scan_Result-blue?logo=virustotal)](https://github.com/thelok1s/tiktok-rv/releases/latest)
 
 This repository contains an automated GitHub Actions pipeline for downloading the latest version of TikTok, patching it, signing it, and publishing the mod every two weeks.
 
