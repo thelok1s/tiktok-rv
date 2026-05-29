@@ -33,7 +33,7 @@
 * **Отключение требования входа:** Обходит обязательный экран входа/регистрации, позволяя сразу просматривать контент без аккаунта.
 * **Фильтр ленты:** Удаляет рекламу из видеоленты.
 * **Загрузки:** Принудительно включает скачивание всех видео (вероятно, функция сломана со стороны сервера), удаляет watermark TikTok из скачанных видео и изменяет директорию загрузки по умолчанию на /sdcard/Pictures/TikTok.
-* **Скорость воспроизведения:** Добавляет управление скоростью воспроизведения (модифицировано для поддержки TikTok v45.4.3+ через обновление сигнатуры метода getCurrentAweme на LJII()).
+* **Скорость воспроизведения:** Добавляет управление скоростью воспроизведения (модифицировано для поддержки TikTok v45.3.3+ через обновление сигнатуры метода getCurrentAweme на LJII()).
 * **Отображение seekbar:** Принудительно показывает seekbar видео, позволяя перематывать любые ролики.
 * **Запоминание Clear Display:** Сохраняет выбранный режим «Clear Display» между видео.
 * **Подмена SIM-региона:** Подменяет регион SIM-карты (по умолчанию — США) для обхода региональных ограничений контента. Загрузка контента работает.
@@ -117,7 +117,7 @@ The modified TikTok application permanently forces the following features (no se
 * **Disable login requirement:** Bypasses the mandatory login/sign-up screen, allowing you to view content immediately without an account.
 * **Feed filter:** Removes advertisements from the video feed.
 * **Downloads:** Force-enables downloading for all videos, removes the TikTok watermark from downloaded videos, and changes the default download directory to `/sdcard/Pictures/TikTok`.
-* **Playback speed:** Adds playback speed controls (modified to support TikTok v45.4.3+ by updating the `getCurrentAweme` method signature to `LJII()`).
+* **Playback speed:** Adds playback speed controls (modified to support TikTok v45.3.3+ by updating the `getCurrentAweme` method signature to `LJII()`).
 * **Show seekbar:** Forces the video seekbar to be visible, allowing you to scrub through any video.
 * **Remember Clear Display:** Saves your chosen "Clear Display" mode across videos.
 * **SIM spoof:** Spoofs the SIM card region (defaults to USA) to bypass regional content restrictions. Content loading works.
