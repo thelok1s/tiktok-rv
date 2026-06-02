@@ -1,6 +1,6 @@
 # tiktok-rv [RU]
 
-[![VirusTotal Scan](https://img.shields.io/badge/VirusTotal-Scan_Result-blue?logo=virustotal)](https://github.com/thelok1s/tiktok-rv/releases/latest)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/thelok1s/tiktok-rv/tiktok-patcher.yml?branch=main&label=Build)](https://github.com/thelok1s/tiktok-rv/actions/workflows/tiktok-patcher.yml) [![Latest Release](https://img.shields.io/github/v/release/thelok1s/tiktok-rv)](https://github.com/thelok1s/tiktok-rv/releases/latest) [![Downloads](https://img.shields.io/github/downloads/thelok1s/tiktok-rv/total)](https://github.com/thelok1s/tiktok-rv/releases) [![VirusTotal Scan](https://img.shields.io/badge/VirusTotal-Scan_Result-blue?logo=virustotal)](https://github.com/thelok1s/tiktok-rv/releases/latest)
 
 Этот репозиторий содержит автоматизированный GitHub Actions пайплайн для загрузки последней версии tiktok, патчинга, подписи и публикации мода каждые две недели.
 
@@ -55,6 +55,21 @@
 
 Вам больше не нужны SAI (Split APKs Installer) или ADB для установки нашего мода!
 
+## Вход в аккаунт
+
+> [!IMPORTANT]
+> Из-за патча **«Отключение требования входа»** обычные кнопки входа могут не работать или приводить к ошибке. Чтобы войти в существующий аккаунт, используйте поток **восстановления аккаунта**.
+
+Если при входе вы видите ошибку — войдите через кнопку **«Recover Your Account»** («Восстановить аккаунт»):
+
+1. Нажмите **«Need help logging in?»** («Нужна помощь со входом?»).
+2. Введите свою **почту**, **имя пользователя** или **номер телефона**.
+3. Введите **код**, который придёт вам на почту или по **SMS**.
+4. Когда приложение покажет сообщение об успешном входе — **перезапустите приложение**.
+
+> [!TIP]
+> После перезапуска вы будете авторизованы. Если вход всё ещё не подхватился, повторите шаги ещё раз и убедитесь, что код введён до истечения его срока действия.
+
 ## Лицензия
 
 Исходный код патчей в директории revanced-patches распространяется по лицензии GNU General Public License v3.0 (GPLv3), унаследованной от оригинального проекта  ReVanced Patches. Подробнее см. в файле LICENSE.
@@ -70,7 +85,7 @@
 
 # tiktok-rv [EN]
 
-[![VirusTotal Scan](https://img.shields.io/badge/VirusTotal-Scan_Result-blue?logo=virustotal)](https://github.com/thelok1s/tiktok-rv/releases/latest)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/thelok1s/tiktok-rv/tiktok-patcher.yml?branch=main&label=Build)](https://github.com/thelok1s/tiktok-rv/actions/workflows/tiktok-patcher.yml) [![Latest Release](https://img.shields.io/github/v/release/thelok1s/tiktok-rv)](https://github.com/thelok1s/tiktok-rv/releases/latest) [![Downloads](https://img.shields.io/github/downloads/thelok1s/tiktok-rv/total)](https://github.com/thelok1s/tiktok-rv/releases) [![VirusTotal Scan](https://img.shields.io/badge/VirusTotal-Scan_Result-blue?logo=virustotal)](https://github.com/thelok1s/tiktok-rv/releases/latest)
 
 This repository contains an automated GitHub Actions pipeline for downloading the latest version of TikTok, patching it, signing it, and publishing the mod every two weeks.
 
@@ -123,6 +138,21 @@ Because the app is now built as a single Universal APK, the installation is very
 2. Open the downloaded file and confirm the installation. (You may need to allow installation from unknown sources in your device settings).
 
 You no longer need SAI (Split APKs Installer) or ADB to install this mod!
+
+## Logging in
+
+> [!IMPORTANT]
+> Because of the **Disable login requirement** patch, the normal login buttons may not work or may throw an error. To sign in to an existing account, use the **account recovery** flow instead.
+
+If you hit an error while logging in, sign in through the **"Recover Your Account"** button:
+
+1. Tap **"Need help logging in?"**.
+2. Enter your **email**, **username**, or **phone number**.
+3. Enter the **code** sent to your email or via **SMS**.
+4. Once the app shows a **success message**, **restart the app**.
+
+> [!TIP]
+> After restarting, you'll be signed in. If the session still isn't picked up, repeat the steps and make sure you enter the code before it expires.
 
 ## License
 
