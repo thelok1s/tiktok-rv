@@ -8,6 +8,12 @@ import app.revanced.extension.tiktok.settings.Settings;
 public class SpoofSimPatch {
 
     /**
+     * {@link android.telephony.TelephonyManager#SIM_STATE_READY}.
+     * Hardcoded to avoid a framework import in the extension.
+     */
+    private static final int SIM_STATE_READY = 5;
+
+    /**
      * During app startup native code can be called with no obvious way to set the context.
      * Cannot check if sim spoofing is enabled or the app will crash since no context is set.
      */
@@ -51,6 +57,32 @@ public class SpoofSimPatch {
             String operator = Settings.SIMSPOOF_OP_NAME.get();
             Logger.printDebug(() -> "Spoofing sim operatorName from: " + value + " to: " + operator);
             return operator;
+        }
+
+        return value;
+    }
+
+    /**
+     * Make a SIM-less device report a present, ready SIM so the spoofed operator/country
+     * stays consistent (TikTok checks the SIM state alongside the operator info).
+     */
+    public static int getSimState(int value) {
+        if (isContextNotSet("simState")) return value;
+
+        if (Settings.SIM_SPOOF.get()) {
+            Logger.printDebug(() -> "Spoofing simState from: " + value + " to: " + SIM_STATE_READY);
+            return SIM_STATE_READY;
+        }
+
+        return value;
+    }
+
+    public static boolean hasIccCard(boolean value) {
+        if (isContextNotSet("hasIccCard")) return value;
+
+        if (Settings.SIM_SPOOF.get()) {
+            Logger.printDebug(() -> "Spoofing hasIccCard from: " + value + " to: true");
+            return true;
         }
 
         return value;
