@@ -30,13 +30,19 @@ val sIMSpoofPatch = bytecodePatch(
     )
 
     apply {
+        // TelephonyManager method name -> Triple(extension method, smali type, isReferenceType).
+        // The smali type is used both for the parameter and the return value; isReferenceType
+        // picks move-result-object (true) vs move-result (false).
         val replacements = hashMapOf(
-            "getSimCountryIso" to "getCountryIso",
-            "getNetworkCountryIso" to "getCountryIso",
-            "getSimOperator" to "getOperator",
-            "getNetworkOperator" to "getOperator",
-            "getSimOperatorName" to "getOperatorName",
-            "getNetworkOperatorName" to "getOperatorName",
+            "getSimCountryIso" to Triple("getCountryIso", "Ljava/lang/String;", true),
+            "getNetworkCountryIso" to Triple("getCountryIso", "Ljava/lang/String;", true),
+            "getSimOperator" to Triple("getOperator", "Ljava/lang/String;", true),
+            "getNetworkOperator" to Triple("getOperator", "Ljava/lang/String;", true),
+            "getSimOperatorName" to Triple("getOperatorName", "Ljava/lang/String;", true),
+            "getNetworkOperatorName" to Triple("getOperatorName", "Ljava/lang/String;", true),
+            // Make a SIM-less device look like it has a ready SIM, so the spoofed operator stays consistent.
+            "getSimState" to Triple("getSimState", "I", false),
+            "hasIccCard" to Triple("hasIccCard", "Z", false),
         )
 
         // Find all api call to check sim information.
@@ -46,7 +52,7 @@ val sIMSpoofPatch = bytecodePatch(
                     buildMap methodList@{
                         methods.forEach methods@{ method ->
                             with(method.implementation?.instructions ?: return@methods) {
-                                ArrayDeque<Pair<Int, String>>().also { patchIndices ->
+                                ArrayDeque<Pair<Int, Triple<String, String, Boolean>>>().also { patchIndices ->
                                     this.forEachIndexed { index, instruction ->
                                         if (instruction.opcode != Opcode.INVOKE_VIRTUAL) return@forEachIndexed
 
@@ -72,16 +78,18 @@ val sIMSpoofPatch = bytecodePatch(
             methods.forEach { (method, patches) ->
                 with(classDef.firstMethod(method)) {
                     while (!patches.isEmpty()) {
-                        val (index, replacement) = patches.removeLast()
+                        val (index, target) = patches.removeLast()
+                        val (extensionMethod, descriptor, isReferenceType) = target
 
                         val resultReg = getInstruction<OneRegisterInstruction>(index + 1).registerA
+                        val moveResult = if (isReferenceType) "move-result-object" else "move-result"
 
                         // Patch Android API and return fake sim information.
                         addInstructions(
                             index + 2,
                             """
-                                invoke-static {v$resultReg}, Lapp/revanced/extension/tiktok/spoof/sim/SpoofSimPatch;->$replacement(Ljava/lang/String;)Ljava/lang/String;
-                                move-result-object v$resultReg
+                                invoke-static {v$resultReg}, Lapp/revanced/extension/tiktok/spoof/sim/SpoofSimPatch;->$extensionMethod($descriptor)$descriptor
+                                $moveResult v$resultReg
                             """,
                         )
                     }

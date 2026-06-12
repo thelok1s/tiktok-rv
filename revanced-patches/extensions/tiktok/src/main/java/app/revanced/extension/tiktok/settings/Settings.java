@@ -21,7 +21,7 @@ public class Settings extends BaseSettings {
     public static final BooleanSetting CLEAR_DISPLAY = new BooleanSetting("clear_display", FALSE);
     public static final FloatSetting REMEMBERED_SPEED = new FloatSetting("REMEMBERED_SPEED", 1.0f);
     public static final BooleanSetting SIM_SPOOF = new BooleanSetting("simspoof", TRUE, true);
-    public static final StringSetting SIM_SPOOF_ISO = new StringSetting("simspoof_iso", "us");
-    public static final StringSetting SIMSPOOF_MCCMNC = new StringSetting("simspoof_mccmnc", "310160");
-    public static final StringSetting SIMSPOOF_OP_NAME = new StringSetting("simspoof_op_name", "T-Mobile");
+    public static final StringSetting SIM_SPOOF_ISO = new StringSetting("simspoof_iso", "lv");
+    public static final StringSetting SIMSPOOF_MCCMNC = new StringSetting("simspoof_mccmnc", "24701");
+    public static final StringSetting SIMSPOOF_OP_NAME = new StringSetting("simspoof_op_name", "LMT");
 }
