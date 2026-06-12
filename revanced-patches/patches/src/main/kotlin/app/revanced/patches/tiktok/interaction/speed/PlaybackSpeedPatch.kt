@@ -21,8 +21,8 @@ val playbackSpeedPatch = bytecodePatch(
         "retains the speed configurations in between videos.",
 ) {
     compatibleWith(
-        "com.ss.android.ugc.trill"("45.3.3"),
-        "com.zhiliaoapp.musically"("45.3.3"),
+        "com.ss.android.ugc.trill",
+        "com.zhiliaoapp.musically",
     )
 
     apply {
@@ -48,8 +48,14 @@ val playbackSpeedPatch = bytecodePatch(
                 invoke-virtual { p0, v0 },  $getEnterFromMethod
                 move-result-object v0
 
-                # Model of current video retrieved using LJII method.
-                invoke-virtual { p0 }, Lcom/ss/android/ugc/aweme/feed/panel/BaseListFragmentPanel;->LJII()Lcom/ss/android/ugc/aweme/feed/model/Aweme;
+                # Model of current video (getCurrentAweme). Obfuscated, version-specific method
+                # name on BaseListFragmentPanel that returns the current Aweme.
+                # 45.3.3: LJII()  ->  45.5.3: LJIIIIZZ()
+                # Re-derive on a TikTok bump: in BaseListFragmentPanel find the no-arg method
+                # returning Lcom/ss/android/ugc/aweme/feed/model/Aweme; whose body reads field
+                # LLJJIJIIJIL and delegates to the ViewPagerComponentTemp getter that calls the
+                # IViewPagerComponentAbility/0QVT->getAweme path (NOT the getCurrentItem/getItem one).
+                invoke-virtual { p0 }, Lcom/ss/android/ugc/aweme/feed/panel/BaseListFragmentPanel;->LJIIIIZZ()Lcom/ss/android/ugc/aweme/feed/model/Aweme;
                 move-result-object v1
 
                 # Desired playback speed retrieved using getPlaybackSpeed method.
