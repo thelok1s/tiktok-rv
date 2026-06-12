@@ -32,7 +32,8 @@ echo "==> Building patch bundle"
   ORG_GRADLE_PROJECT_githubPackagesPassword="$(gh auth token)" \
   ./gradlew :patches:build -x test -q )
 
-BUNDLE="$(find revanced-patches/patches/build/libs -name 'patches-*.rvp' | head -n1)"
+# Exclude the -sources rvp: it sorts before the real bundle and contains no compiled patches.
+BUNDLE="$(find revanced-patches/patches/build/libs -name 'patches-*.rvp' ! -name '*sources*' | head -n1)"
 echo "==> Bundle: $BUNDLE"
 
 echo "==> Patching base ($BASE_APK)"

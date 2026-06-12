@@ -18,6 +18,17 @@ public class Aweme {
         throw new UnsupportedOperationException("Stub");
     }
 
+    public boolean isSoftAd() {
+        throw new UnsupportedOperationException("Stub");
+    }
+
+    // Real signature: ()Lcom/ss/android/ugc/aweme/feed/model/AwemeRawAd; — return type must match
+    // exactly so the injected invoke-virtual resolves at runtime. Non-null for ad Awemes
+    // (including brand-takeover / soft ads where isAd() returns false).
+    public AwemeRawAd getAwemeRawAd() {
+        throw new UnsupportedOperationException("Stub");
+    }
+
     public boolean getIsTikTokStory() {
         throw new UnsupportedOperationException("Stub");
     }
