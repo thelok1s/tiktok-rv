@@ -21,8 +21,8 @@ val playbackSpeedPatch = bytecodePatch(
         "retains the speed configurations in between videos.",
 ) {
     compatibleWith(
-        "com.ss.android.ugc.trill"("43.5.4", "45.3.3", "45.4.3"),
-        "com.zhiliaoapp.musically"("43.5.4", "45.3.3", "45.4.3"),
+        "com.ss.android.ugc.trill",
+        "com.zhiliaoapp.musically",
     )
 
     apply {
@@ -48,8 +48,9 @@ val playbackSpeedPatch = bytecodePatch(
                 invoke-virtual { p0, v0 },  $getEnterFromMethod
                 move-result-object v0
 
-                # Model of current video retrieved using LJII method.
-                invoke-virtual { p0 }, Lcom/ss/android/ugc/aweme/feed/panel/BaseListFragmentPanel;->LJII()Lcom/ss/android/ugc/aweme/feed/model/Aweme;
+                # Model of current video (getCurrentAweme). The obfuscated name drifts per
+                # version/variant, so it is resolved by fingerprint (see getCurrentAwemeMethod).
+                invoke-virtual { p0 }, Lcom/ss/android/ugc/aweme/feed/panel/BaseListFragmentPanel;->${getCurrentAwemeMethod.name}()Lcom/ss/android/ugc/aweme/feed/model/Aweme;
                 move-result-object v1
 
                 # Desired playback speed retrieved using getPlaybackSpeed method.
