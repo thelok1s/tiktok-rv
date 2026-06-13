@@ -49,7 +49,8 @@ for c in config.arm64_v8a config.xxxhdpi config.en config.ru; do
   [ -f "$SPLITS_SRC/$c.apk" ] && cp "$SPLITS_SRC/$c.apk" "$SPLITS_DIR/"
 done
 rm -f "$ROOT/.local-merged.apk"
-java -jar APKEditor.jar m -i "$SPLITS_DIR" -o "$ROOT/.local-merged.apk"
+APKEDITOR="$(ls "$ROOT"/APKEditor.jar "$ROOT"/tools/APKEditor.jar 2>/dev/null | head -n1)"
+java -jar "$APKEDITOR" m -i "$SPLITS_DIR" -o "$ROOT/.local-merged.apk"
 
 if [ ! -f "$KS" ]; then
   echo "==> Generating local keystore"
