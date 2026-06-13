@@ -340,7 +340,9 @@ jobs:
 
       - name: Patch and merge APKs
         run: |
-          PATCH_BUNDLE=$(find revanced-patches/patches/build/libs -name "patches-*.rvp" | head -n 1)
+          # Exclude the -sources bundle: it sorts/lists alongside the real one but contains
+          # no compiled patches, so picking it silently produces an unpatched APK.
+          PATCH_BUNDLE=$(find revanced-patches/patches/build/libs -name "patches-*.rvp" ! -name "*sources*" | head -n 1)
           echo "Using patch bundle: $PATCH_BUNDLE"
 
           should_build() {
