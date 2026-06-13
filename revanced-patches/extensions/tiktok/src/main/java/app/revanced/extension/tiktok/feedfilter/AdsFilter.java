@@ -11,10 +11,16 @@ public class AdsFilter implements IFilter {
 
     @Override
     public boolean getFiltered(Aweme item) {
-        // getAwemeRawAd() != null is the broadest ad signal: it is non-null for any Aweme
-        // carrying an ad payload, including brand-takeover / soft ads where isAd() returns
-        // false (isAd() requires BOTH the isAd flag and awemeRawAd). isWithPromotionalMusic()
-        // covers branded-music posts that may not carry a raw ad.
-        return item.getAwemeRawAd() != null || item.isAd() || item.isWithPromotionalMusic();
+        // getAdAwemeSource() != 0 marks an ad slot at fetchFeedList time, BEFORE the awemeRawAd
+        // payload is lazily attached at render — so getAwemeRawAd()/isAd() are still null/false
+        // there. It reliably removes video brand-takeover ads (e.g. the For-You "Реклама"
+        // placements) that the other signals miss. NOTE: photo-mode ads and other lazily-marked
+        // ads are still not caught at this hook — those need a render-time or network approach.
+        // getAwemeRawAd()/isAd()/isWithPromotionalMusic() cover paths where the ad payload is
+        // already present (e.g. paginated loads, branded-music posts).
+        return item.getAdAwemeSource() != 0
+                || item.getAwemeRawAd() != null
+                || item.isAd()
+                || item.isWithPromotionalMusic();
     }
 }

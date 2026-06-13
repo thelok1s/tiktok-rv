@@ -22,6 +22,12 @@ public class Aweme {
         throw new UnsupportedOperationException("Stub");
     }
 
+    // Real field: public int adAwemeSource — non-zero marks an ad slot at fetchFeedList
+    // time (before awemeRawAd is attached). Key signal for For-You brand-takeover ads.
+    public int getAdAwemeSource() {
+        throw new UnsupportedOperationException("Stub");
+    }
+
     // Real signature: ()Lcom/ss/android/ugc/aweme/feed/model/AwemeRawAd; — return type must match
     // exactly so the injected invoke-virtual resolves at runtime. Non-null for ad Awemes
     // (including brand-takeover / soft ads where isAd() returns false).
