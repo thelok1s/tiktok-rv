@@ -31,12 +31,12 @@
 Модифицированное TikTok-приложение принудительно включает следующие функции (меню настроек не предусмотрено):
 
 * **Отключение требования входа:** Обходит обязательный экран входа/регистрации, позволяя сразу просматривать контент без аккаунта.
-* **Фильтр ленты:** Удаляет рекламу из видеоленты.
+* **Фильтр ленты:** Удаляет рекламу из видеоленты. Реклама распознаётся по нескольким признакам объекта `Aweme` (`adAwemeSource`, `getAwemeRawAd`, `isAd`, а также собственный классификатор TikTok `isPseudoAd` для брендовых и фото-объявлений). Объявления, которые рекламный движок вставляет в ленту уже *после* её загрузки (рекламные «поды», обходящие фильтр списка), автоматически проматываются в момент появления.
 * **Загрузки:** Принудительно включает скачивание всех видео (вероятно, функция сломана со стороны сервера), удаляет watermark TikTok из скачанных видео и изменяет директорию загрузки по умолчанию на /sdcard/Pictures/TikTok.
-* **Скорость воспроизведения:** Добавляет управление скоростью воспроизведения (модифицировано для поддержки TikTok v45.3.3+ через обновление сигнатуры метода getCurrentAweme на LJII()).
+* **Скорость воспроизведения:** Добавляет управление скоростью воспроизведения. Метод `getCurrentAweme` определяется по сигнатуре (fingerprint), а не по жёстко заданному обфусцированному имени, поэтому патч переносится между версиями и ветками (global/asia) без правок.
 * **Отображение seekbar:** Принудительно показывает seekbar видео, позволяя перематывать любые ролики.
 * **Запоминание Clear Display:** Сохраняет выбранный режим «Clear Display» между видео.
-* **Подмена SIM-региона:** Подменяет регион SIM-карты (по умолчанию — США) для обхода региональных ограничений контента. Загрузка контента работает.
+* **Подмена SIM-региона:** Подменяет регион SIM-карты (по умолчанию — Латвия) для обхода региональных ограничений контента. Загрузка контента работает.
 
 ### Pipeline выполняет следующие шаги:
 
@@ -115,12 +115,12 @@ On the other hand, we have the ReVanced mod (or rather, a mix of plugins), where
 The modified TikTok application permanently forces the following features (no settings menu is provided):
 
 * **Disable login requirement:** Bypasses the mandatory login/sign-up screen, allowing you to view content immediately without an account.
-* **Feed filter:** Removes advertisements from the video feed.
+* **Feed filter:** Removes advertisements from the video feed. Ads are detected via several `Aweme` signals (`adAwemeSource`, `getAwemeRawAd`, `isAd`, and TikTok's own `isPseudoAd` classifier for brand-takeover and photo ads). Ads that the ad engine injects into the feed *after* it loads (ad-pods that bypass the list filter) are automatically skipped the moment they appear.
 * **Downloads:** Force-enables downloading for all videos, removes the TikTok watermark from downloaded videos, and changes the default download directory to `/sdcard/Pictures/TikTok`.
-* **Playback speed:** Adds playback speed controls (modified to support TikTok v45.3.3+ by updating the `getCurrentAweme` method signature to `LJII()`).
+* **Playback speed:** Adds playback speed controls. The `getCurrentAweme` method is resolved by fingerprint rather than a hardcoded obfuscated name, so the patch carries across versions and branches (global/asia) without edits.
 * **Show seekbar:** Forces the video seekbar to be visible, allowing you to scrub through any video.
 * **Remember Clear Display:** Saves your chosen "Clear Display" mode across videos.
-* **SIM spoof:** Spoofs the SIM card region (defaults to USA) to bypass regional content restrictions. Content loading works.
+* **SIM spoof:** Spoofs the SIM card region (defaults to Latvia) to bypass regional content restrictions. Content loading works.
 
 ### The Pipeline executes the following steps:
 
