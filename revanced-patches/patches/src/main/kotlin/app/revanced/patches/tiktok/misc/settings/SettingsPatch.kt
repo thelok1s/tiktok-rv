@@ -3,7 +3,6 @@ package app.revanced.patches.tiktok.misc.settings
 import app.revanced.patcher.extensions.*
 import app.revanced.patcher.immutableClassDef
 import app.revanced.patcher.patch.bytecodePatch
-import app.revanced.patches.shared.layout.branding.addBrandLicensePatch
 import app.revanced.patches.tiktok.misc.extension.sharedExtensionPatch
 import app.revanced.util.getReference
 import app.revanced.util.indexOfFirstInstruction
@@ -19,7 +18,7 @@ val settingsPatch = bytecodePatch(
     name = "Settings",
     description = "Adds ReVanced settings to TikTok.",
 ) {
-    dependsOn(sharedExtensionPatch, addBrandLicensePatch)
+    dependsOn(sharedExtensionPatch)
 
     compatibleWith(
         "com.ss.android.ugc.trill",
