@@ -28,8 +28,9 @@
 
 ### Применяемые патчи
 
-Модифицированное TikTok-приложение принудительно включает следующие функции (меню настроек не предусмотрено):
+Модифицированное TikTok-приложение включает следующие функции:
 
+* **Меню настроек:** Добавляет пункт «ReVanced» в настройки TikTok (внизу страницы «О приложении»), где можно включать и отключать функции — в том числе новый переключатель «Пропускать рекламу при показе», управляющий автопролистыванием рекламы, прошедшей фильтр.
 * **Отключение требования входа:** Обходит обязательный экран входа/регистрации, позволяя сразу просматривать контент без аккаунта.
 * **Фильтр ленты:** Удаляет рекламу из видеоленты. Реклама распознаётся по нескольким признакам объекта `Aweme` (`adAwemeSource`, `getAwemeRawAd`, `isAd`, а также собственный классификатор TikTok `isPseudoAd` для брендовых и фото-объявлений). Объявления, которые рекламный движок вставляет в ленту уже *после* её загрузки (рекламные «поды», обходящие фильтр списка), автоматически проматываются в момент появления.
 * **Загрузки:** Принудительно включает скачивание всех видео (вероятно, функция сломана со стороны сервера), удаляет watermark TikTok из скачанных видео и изменяет директорию загрузки по умолчанию на /sdcard/Pictures/TikTok.
@@ -112,8 +113,9 @@ On the other hand, we have the ReVanced mod (or rather, a mix of plugins), where
 
 ### Applied Patches
 
-The modified TikTok application permanently forces the following features (no settings menu is provided):
+The modified TikTok application provides the following features:
 
+* **Settings menu:** Adds a "ReVanced" entry to TikTok's settings (at the bottom of the About page) where features can be toggled — including a new "Skip ads at render" sub-toggle that controls whether the feed auto-swipes past ads that slip through the filter.
 * **Disable login requirement:** Bypasses the mandatory login/sign-up screen, allowing you to view content immediately without an account.
 * **Feed filter:** Removes advertisements from the video feed. Ads are detected via several `Aweme` signals (`adAwemeSource`, `getAwemeRawAd`, `isAd`, and TikTok's own `isPseudoAd` classifier for brand-takeover and photo ads). Ads that the ad engine injects into the feed *after* it loads (ad-pods that bypass the list filter) are automatically skipped the moment they appear.
 * **Downloads:** Force-enables downloading for all videos, removes the TikTok watermark from downloaded videos, and changes the default download directory to `/sdcard/Pictures/TikTok`.
