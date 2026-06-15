@@ -120,18 +120,23 @@ val settingsPatch = bytecodePatch(
             val managerRegister = lastAdd.registerC
             val entryRegister = lastAdd.registerD
 
-            addInstructions(
+            // If createSettingsEntry returns null (e.g. a future ExposeItem signature change it
+            // can't satisfy), skip the add so the host page still renders its own rows instead of
+            // failing to build the unit list.
+            addInstructionsWithLabels(
                 commitGetManagerIndex,
                 """
                     const-string v$entryRegister, "$settingsButtonClass"
                     const-string v$managerRegister, "$settingsButtonInfoClass"
                     invoke-static {v$entryRegister, v$managerRegister}, $createSettingsEntryMethodDescriptor
                     move-result-object v$entryRegister
+                    if-eqz v$entryRegister, :revanced_skip_entry
                     check-cast v$entryRegister, ${settingsEntryMethod.immutableClassDef.type}
                     invoke-virtual {v$thisRegister}, ${getManager.getReference<MethodReference>()}
                     move-result-object v$managerRegister
                     invoke-virtual {v$managerRegister, v$entryRegister}, ${addEntry.getReference<MethodReference>()}
                 """,
+                ExternalLabel("revanced_skip_entry", getInstruction(commitGetManagerIndex)),
             )
         }
 
