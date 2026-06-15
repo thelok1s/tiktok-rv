@@ -42,7 +42,6 @@ TikTokPreferenceFragment  (extension UI, android.preference, pure Java)
         ├── FeedFilterPreferenceCategory      (SettingsStatus.feedFilterEnabled)
         ├── DownloadsPreferenceCategory        (downloadEnabled)
         ├── SimSpoofPreferenceCategory         (simSpoofEnabled)
-        ├── PlaybackPreferenceCategory  (NEW, always-on)
         └── ExtensionPreferenceCategory        (always-on)
         ▼
 Settings.java keys  ←→  read by each feature's extension code (AdsFilter, FeedAdSkip, ...)
@@ -55,9 +54,7 @@ Settings.java keys  ←→  read by each feature's extension code (AdsFilter, Fe
 | `patches/.../tiktok/misc/settings/SettingsPatch.kt` | injects entry + hijacks activity | enable in build; repair if fingerprints broke |
 | `patches/.../tiktok/misc/settings/Fingerprints.kt` | 4 fingerprints | re-anchor any that don't resolve on 45.5.x |
 | `extensions/.../settings/Settings.java` | setting keys | add `SKIP_ADS_AT_RENDER` |
-| `extensions/.../settings/preference/TikTokPreferenceFragment.java` | builds the screen | register new Playback category |
 | `extensions/.../settings/preference/categories/FeedFilterPreferenceCategory.java` | feed toggles | add "Skip ads at render" toggle |
-| `extensions/.../settings/preference/categories/PlaybackPreferenceCategory.java` | NEW | surface `REMEMBERED_SPEED` + `CLEAR_DISPLAY` |
 | `extensions/.../feedfilter/FeedAdSkip.java` | render-time skip | extend existing `REMOVE_ADS` guard with `SKIP_ADS_AT_RENDER` sub-toggle |
 | `scripts/build-local.sh` | local enable list | add `-e "Settings"` |
 | `.github/workflows/tiktok-patcher.yml` | CI enable list | add `Settings` to patch list |
@@ -103,17 +100,20 @@ New `SKIP_ADS_AT_RENDER` defaults `TRUE` (preserves current behavior). It belong
 Feed-filter category beside `REMOVE_ADS`, with a description making clear it controls the
 auto-skip, not ad detection.
 
-### New Playback category
+### Orphan keys — intentionally NOT surfaced
 
-Always-on (`getSettingsStatus()` returns `true`, like `ExtensionPreferenceCategory`), so it
-can't silently vanish and serves as the on-device canary that the fragment renders. Surfaces
-two existing-but-orphan keys:
+`REMEMBERED_SPEED` (`FloatSetting`) and `CLEAR_DISPLAY` (`BooleanSetting`) have no UI **by
+design**, not oversight. Their extension code shows they are auto-managed remembered state:
 
-- `REMEMBERED_SPEED` (`FloatSetting`, default `1.0f`) — read by the playback-speed feature.
-- `CLEAR_DISPLAY` (`BooleanSetting`, default `FALSE`) — read by the clear-display feature.
+- `PlaybackSpeedPatch.rememberPlaybackSpeed(newSpeed)` persists whatever speed the user last
+  picked in-app; `getPlaybackSpeed()` restores it next launch.
+- `RememberClearDisplayPatch.rememberClearDisplayState(newState)` persists the in-app
+  clear-display toggle; `getClearDisplayState()` restores it.
 
-If either setting requires an app restart to take effect, route the change through the
-fragment's existing restart dialog (`restartDialogMessage`).
+Exposing them as editable preferences would be redundant (a second control fighting the
+in-app one) or meaningless (an editable "last speed" number). They stay orphan. No Playback
+category is added. The "always-on canary proves the fragment renders" role is already filled
+by the existing always-on `ExtensionPreferenceCategory` (Miscellaneous).
 
 ## Menu surface (final)
 
@@ -122,12 +122,10 @@ fragment's existing restart dialog (`restartDialogMessage`).
 | Feed filter | Remove feed ads, **Skip ads at render (new)**, Hide Shop/Live/Story/Image, Min/Max views, Min/Max likes | exists + 1 new |
 | Downloads | Download path, Remove watermark | as-is |
 | Bypass regional restriction | Fake SIM, Country ISO, mcc+mnc, Operator name | as-is |
-| Playback (new, always-on) | Remembered speed, Clear display | new UI, existing keys |
 | Miscellaneous | About, Sanitize sharing links, Debug log | as-is |
 
-**Total new code**: 1 Settings key, 1 extension guard line, 1 new category class, 1 toggle
-added to an existing category, 1 fragment registration line, 2 build-list edits. Everything
-else is revive + fingerprint repair.
+**Total new code**: 1 Settings key, 1 extension guard edit, 1 toggle added to an existing
+category, 2 build-list edits. Everything else is revive + fingerprint repair.
 
 ## Error handling / failure modes
 
@@ -137,8 +135,8 @@ else is revive + fingerprint repair.
 - **Entry row present, tap is a no-op** → `AdPersonalizationActivity` hijack mis-resolved or
   `initialize()` returns false. Verified on-device.
 - **Menu opens, a feature category missing** → that feature's `SettingsStatus.enableX()`
-  wasn't injected (feature patch didn't run). Playback is always-on, so its absence would
-  instead indicate the fragment itself failed to render.
+  wasn't injected (feature patch didn't run). The always-on Miscellaneous category always
+  renders, so if even *it* is absent the fragment itself failed to load.
 - **Toggle flips, no effect** → live vs. restart mismatch; route restart-required settings
   through the restart dialog.
 
@@ -146,11 +144,10 @@ else is revive + fingerprint repair.
 
 1. **Build**: `Settings` patch applies cleanly against the 45.5.3 base (probe green); full
    `build-local.sh` produces a signed APK.
-2. **Smoke (device)**: native Settings → "ReVanced" row visible → opens → all 5 categories
+2. **Smoke (device)**: native Settings → "ReVanced" row visible → opens → all 4 categories
    render.
 3. **Functional**: *Remove feed ads* off → ads reappear (and no auto-swipe); *Remove feed
-   ads* on + *Skip ads at render* off → ad still detected but feed does **not** auto-advance;
-   *Remembered speed* persists across restart.
+   ads* on + *Skip ads at render* off → ad still detected but feed does **not** auto-advance.
 4. **Regression**: seekbar still shows, login still bypassed (both untouched).
 
 ## Rollout
