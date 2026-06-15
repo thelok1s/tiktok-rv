@@ -20,17 +20,22 @@ APKSIGNER="$(ls "$SDK"/build-tools/*/apksigner | sort -V | tail -1)"
 PATCHES=("$@")
 if [ ${#PATCHES[@]} -eq 0 ]; then
   PATCHES=(
+    -e "Settings"
     -e "Feed filter" -e "Downloads" -e "SIM spoof"
     -e "Remember clear display" -e "Show seekbar"
     -e "Playback speed" -e "Disable login requirement"
   )
 fi
 
+# Extra gradle flags (e.g. GRADLE_FLAGS=--offline when jitpack is unreachable but
+# the SNAPSHOT plugin is already cached locally).
+GRADLE_FLAGS="${GRADLE_FLAGS:-}"
+
 echo "==> Building patch bundle"
 ( cd revanced-patches && \
   ORG_GRADLE_PROJECT_githubPackagesUsername="${GH_USER:-thelok1s}" \
   ORG_GRADLE_PROJECT_githubPackagesPassword="$(gh auth token)" \
-  ./gradlew :patches:build -x test -q )
+  ./gradlew :patches:build -x test -q $GRADLE_FLAGS )
 
 # Exclude the -sources rvp: it sorts before the real bundle and contains no compiled patches.
 BUNDLE="$(find revanced-patches/patches/build/libs -name 'patches-*.rvp' ! -name '*sources*' | head -n1)"
