@@ -30,7 +30,7 @@ public final class FeedAdSkip {
     public static void onAwemeRendered(Aweme aweme) {
         try {
             if (aweme == null || aweme == lastHandled) return;
-            if (!Settings.REMOVE_ADS.get()) return;
+            if (!Settings.REMOVE_ADS.get() || !Settings.SKIP_ADS_AT_RENDER.get()) return;
             if (!isAd(aweme)) return;
             lastHandled = aweme;
             Activity activity = getResumedActivity();

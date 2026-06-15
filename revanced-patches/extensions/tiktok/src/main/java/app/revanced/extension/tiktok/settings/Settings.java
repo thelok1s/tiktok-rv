@@ -10,6 +10,7 @@ import app.revanced.extension.shared.settings.StringSetting;
 
 public class Settings extends BaseSettings {
     public static final BooleanSetting REMOVE_ADS = new BooleanSetting("remove_ads", TRUE, true);
+    public static final BooleanSetting SKIP_ADS_AT_RENDER = new BooleanSetting("skip_ads_at_render", TRUE, true);
     public static final BooleanSetting HIDE_LIVE = new BooleanSetting("hide_live", FALSE, true);
     public static final BooleanSetting HIDE_SHOP = new BooleanSetting("hide_shop", FALSE, true);
     public static final BooleanSetting HIDE_STORY = new BooleanSetting("hide_story", FALSE, true);

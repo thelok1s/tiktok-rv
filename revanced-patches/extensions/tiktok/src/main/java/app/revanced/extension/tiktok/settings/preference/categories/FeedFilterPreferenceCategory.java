@@ -28,6 +28,11 @@ public class FeedFilterPreferenceCategory extends ConditionalPreferenceCategory 
         ));
         addPreference(new TogglePreference(
                 context,
+                "Skip ads at render", "Auto-swipe past an ad that slips through the filter. Turn off to stop the feed from auto-advancing (ads may still appear).",
+                Settings.SKIP_ADS_AT_RENDER
+        ));
+        addPreference(new TogglePreference(
+                context,
                 "Hide TikTok Shop", "Hide TikTok shop from feed.",
                 Settings.HIDE_SHOP
         ));
