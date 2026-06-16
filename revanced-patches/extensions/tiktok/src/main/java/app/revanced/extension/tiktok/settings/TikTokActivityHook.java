@@ -73,7 +73,12 @@ public class TikTokActivityHook {
                 args[i] = defaultValue(params[i]);
             }
             args[0] = "ReVanced settings";
-            args[1] = newInstanceOrNull(params[1]); // icon object (no-arg ctor, as in native code)
+            // The icon is a reference type built via its no-arg constructor (as in the native
+            // code). Guard against a primitive icon param so we leave its zero default in place
+            // rather than overwriting it with null (which would fail to unbox).
+            if (!params[1].isPrimitive()) {
+                args[1] = newInstanceOrNull(params[1]);
+            }
             args[2] = (View.OnClickListener) view -> startSettingsActivity();
             int last = params.length - 1;
             if (params[last] == int.class) {

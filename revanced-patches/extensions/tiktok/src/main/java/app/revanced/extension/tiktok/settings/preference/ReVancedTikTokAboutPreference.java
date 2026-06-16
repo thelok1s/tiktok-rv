@@ -1,12 +1,9 @@
 package app.revanced.extension.tiktok.settings.preference;
 
 import android.content.Context;
-import android.content.Intent;
-import android.net.Uri;
 import android.preference.Preference;
 import android.view.View;
 
-import app.revanced.extension.shared.Logger;
 import app.revanced.extension.tiktok.Utils;
 
 /**
@@ -40,14 +37,7 @@ public class ReVancedTikTokAboutPreference extends Preference {
 
     @Override
     protected void onClick() {
-        try {
-            Context context = getContext();
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(REPO_URL));
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(intent);
-        } catch (Exception ex) {
-            Logger.printException(() -> "Could not open " + REPO_URL, ex);
-        }
+        app.revanced.extension.shared.Utils.openLink(REPO_URL);
     }
 
     @Override
