@@ -364,6 +364,7 @@ jobs:
               -b \
               -o "$UNSIGNED_PATCHED" \
               --exclusive \
+              -e "Settings" \
               -e "Feed filter" \
               -e "Downloads" \
               -e "SIM spoof" \

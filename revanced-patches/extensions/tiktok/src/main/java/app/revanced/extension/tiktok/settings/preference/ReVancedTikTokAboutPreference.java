@@ -1,47 +1,43 @@
 package app.revanced.extension.tiktok.settings.preference;
 
 import android.content.Context;
+import android.preference.Preference;
 import android.view.View;
 
-import java.util.Map;
-
-import app.revanced.extension.shared.Logger;
-import app.revanced.extension.shared.settings.preference.ReVancedAboutPreference;
 import app.revanced.extension.tiktok.Utils;
 
+/**
+ * About entry for the tiktok-rv settings menu. Shows the current versions and opens the
+ * project's GitHub repository when tapped.
+ *
+ * <p>Resources cannot be compiled into TikTok (aapt fails on its stripped resources), so this is
+ * built in code rather than from XML.
+ */
 @SuppressWarnings("deprecation")
-public class ReVancedTikTokAboutPreference extends ReVancedAboutPreference {
+public class ReVancedTikTokAboutPreference extends Preference {
 
     /**
-     * Because resources cannot be added to TikTok,
-     * these strings are copied from the shared strings.xml file.
-     * <p>
-     * Changes here must also be made in strings.xml
+     * tiktok-rv release version. Bump this on each release (the releases are date-based, e.g.
+     * {@code v2026.06.16}). There is no runtime source for it, unlike the ReVanced Patches version.
      */
-    private final Map<String, String> aboutStrings = Map.of(
-            "revanced_settings_about_links_body", "You are using ReVanced Patches version <i>%s</i>",
-            "revanced_settings_about_links_dev_header", "Note",
-            "revanced_settings_about_links_dev_body", "This version is a pre-release and you may experience unexpected issues",
-            "revanced_settings_about_links_header", "Official links"
-    );
+    public static final String TIKTOK_RV_VERSION = "v2026.06.16";
+
+    private static final String REPO_URL = "https://github.com/thelok1s/tiktok-rv";
 
     public ReVancedTikTokAboutPreference(Context context) {
         super(context);
 
-        setTitle("About");
-        setSummary("About ReVanced");
+        String patchesVersion = app.revanced.extension.shared.Utils.getPatchesReleaseVersion();
+
+        setTitle("About tiktok-rv");
+        setSummary("tiktok-rv " + TIKTOK_RV_VERSION
+                + " · ReVanced Patches " + patchesVersion + "\n"
+                + "Based on ReVanced. Tap to open the GitHub repository.");
     }
 
     @Override
-    protected String getString(String key, Object ... args) {
-        String format = aboutStrings.get(key);
-
-        if (format == null) {
-            Logger.printException(() -> "Unknown key: " + key);
-            return "";
-        }
-
-        return String.format(format, args);
+    protected void onClick() {
+        app.revanced.extension.shared.Utils.openLink(REPO_URL);
     }
 
     @Override

@@ -23,10 +23,7 @@ public class TikTokPreferenceFragment extends AbstractPreferenceFragment {
     protected void syncSettingWithPreference(@NonNull Preference pref,
                                              @NonNull Setting<?> setting,
                                              boolean applySettingToPreference) {
-        if (pref instanceof RangeValuePreference) {
-            RangeValuePreference rangeValuePref = (RangeValuePreference) pref;
-            Setting.privateSetValueFromString(setting, rangeValuePref.getValue());
-        } else if (pref instanceof DownloadPathPreference) {
+        if (pref instanceof DownloadPathPreference) {
             DownloadPathPreference downloadPathPref = (DownloadPathPreference) pref;
             Setting.privateSetValueFromString(setting, downloadPathPref.getValue());
         } else {
@@ -45,8 +42,10 @@ public class TikTokPreferenceFragment extends AbstractPreferenceFragment {
         restartDialogButtonText = "Restart";
         confirmDialogTitle = "Do you wish to proceed?";
 
-        // App does not use dark mode.
-        Utils.setIsDarkModeEnabled(false);
+        // The host AdPersonalizationActivity renders on a black background, so use dark-mode text
+        // colors (white title / light-grey summary). Light-mode colours were black-on-black and
+        // unreadable. TikTokActivityHook.initialize() sets a matching solid dark background.
+        Utils.setIsDarkModeEnabled(true);
 
         PreferenceScreen preferenceScreen = getPreferenceManager().createPreferenceScreen(context);
         setPreferenceScreen(preferenceScreen);

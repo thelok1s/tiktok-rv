@@ -2,7 +2,6 @@ package app.revanced.extension.tiktok.settings.preference.categories;
 
 import android.content.Context;
 import android.preference.PreferenceScreen;
-import app.revanced.extension.tiktok.settings.preference.RangeValuePreference;
 import app.revanced.extension.tiktok.settings.Settings;
 import app.revanced.extension.tiktok.settings.SettingsStatus;
 import app.revanced.extension.tiktok.settings.preference.TogglePreference;
@@ -28,6 +27,11 @@ public class FeedFilterPreferenceCategory extends ConditionalPreferenceCategory 
         ));
         addPreference(new TogglePreference(
                 context,
+                "Skip ads at render", "Auto-swipe past an ad that slips through the filter. Turn off to stop the feed from auto-advancing (ads may still appear).",
+                Settings.SKIP_ADS_AT_RENDER
+        ));
+        addPreference(new TogglePreference(
+                context,
                 "Hide TikTok Shop", "Hide TikTok shop from feed.",
                 Settings.HIDE_SHOP
         ));
@@ -45,16 +49,6 @@ public class FeedFilterPreferenceCategory extends ConditionalPreferenceCategory 
                 context,
                 "Hide image video", "Hide image video from feed.",
                 Settings.HIDE_IMAGE
-        ));
-        addPreference(new RangeValuePreference(
-                context,
-                "Min/Max views", "The minimum or maximum views of a video to show.",
-                Settings.MIN_MAX_VIEWS
-        ));
-        addPreference(new RangeValuePreference(
-                context,
-                "Min/Max likes", "The minimum or maximum likes of a video to show.",
-                Settings.MIN_MAX_LIKES
         ));
     }
 }
