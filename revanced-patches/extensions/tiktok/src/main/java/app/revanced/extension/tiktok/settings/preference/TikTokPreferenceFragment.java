@@ -23,10 +23,7 @@ public class TikTokPreferenceFragment extends AbstractPreferenceFragment {
     protected void syncSettingWithPreference(@NonNull Preference pref,
                                              @NonNull Setting<?> setting,
                                              boolean applySettingToPreference) {
-        if (pref instanceof RangeValuePreference) {
-            RangeValuePreference rangeValuePref = (RangeValuePreference) pref;
-            Setting.privateSetValueFromString(setting, rangeValuePref.getValue());
-        } else if (pref instanceof DownloadPathPreference) {
+        if (pref instanceof DownloadPathPreference) {
             DownloadPathPreference downloadPathPref = (DownloadPathPreference) pref;
             Setting.privateSetValueFromString(setting, downloadPathPref.getValue());
         } else {

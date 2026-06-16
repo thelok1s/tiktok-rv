@@ -13,8 +13,6 @@ public final class FeedItemsFilter {
             new LiveFilter(),
             new StoryFilter(),
             new ImageVideoFilter(),
-            new ViewCountFilter(),
-            new LikeCountFilter(),
             new ShopFilter()
     );
 

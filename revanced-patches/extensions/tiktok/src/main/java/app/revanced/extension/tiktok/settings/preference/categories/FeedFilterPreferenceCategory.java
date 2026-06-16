@@ -2,7 +2,6 @@ package app.revanced.extension.tiktok.settings.preference.categories;
 
 import android.content.Context;
 import android.preference.PreferenceScreen;
-import app.revanced.extension.tiktok.settings.preference.RangeValuePreference;
 import app.revanced.extension.tiktok.settings.Settings;
 import app.revanced.extension.tiktok.settings.SettingsStatus;
 import app.revanced.extension.tiktok.settings.preference.TogglePreference;
@@ -50,16 +49,6 @@ public class FeedFilterPreferenceCategory extends ConditionalPreferenceCategory 
                 context,
                 "Hide image video", "Hide image video from feed.",
                 Settings.HIDE_IMAGE
-        ));
-        addPreference(new RangeValuePreference(
-                context,
-                "Min/Max views", "The minimum or maximum views of a video to show.",
-                Settings.MIN_MAX_VIEWS
-        ));
-        addPreference(new RangeValuePreference(
-                context,
-                "Min/Max likes", "The minimum or maximum likes of a video to show.",
-                Settings.MIN_MAX_LIKES
         ));
     }
 }
