@@ -128,6 +128,9 @@ public class TikTokActivityHook {
         linearLayout.setOrientation(LinearLayout.VERTICAL);
         linearLayout.setFitsSystemWindows(true);
         linearLayout.setTransitionGroup(true);
+        // Solid dark background so the dark-mode text colours (see TikTokPreferenceFragment) are
+        // always readable, regardless of the host activity's theme.
+        linearLayout.setBackgroundColor(0xFF121212);
 
         FrameLayout fragment = new FrameLayout(base);
         fragment.setLayoutParams(new FrameLayout.LayoutParams(-1, -1));

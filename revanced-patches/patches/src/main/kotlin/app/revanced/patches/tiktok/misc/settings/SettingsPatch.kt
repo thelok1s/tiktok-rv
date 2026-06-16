@@ -6,7 +6,6 @@ import app.revanced.patcher.patch.bytecodePatch
 import app.revanced.patches.tiktok.misc.extension.sharedExtensionPatch
 import app.revanced.util.getReference
 import app.revanced.util.indexOfFirstInstruction
-import app.revanced.util.indexOfFirstInstructionReversed
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
@@ -43,20 +42,22 @@ val settingsPatch = bytecodePatch(
         val settingsButtonClass = settingsEntryMethod.immutableClassDef.type.toClassName()
         val settingsButtonInfoClass = settingsEntryInfoMethod.immutableClassDef.type.toClassName()
 
-        // Create a settings entry for 'revanced settings' and add it to the settings page.
+        // Create a settings entry for 'revanced settings' and add it to the settings page as the
+        // FIRST item, so it is immediately visible when the page opens.
         //
         // On TikTok 45.5.x the settings UI no longer exposes a `headerUnit` field. Instead each
         // `*Page` (here `AboutPage.onViewCreated`) populates a shared "unit manager" by repeatedly
         // calling `<this>.getManager()` (an obfuscated no-arg getter returning the manager type)
         // followed by `manager.add(unit)` (a one-arg `void` call), and finishing with a no-arg
-        // `void` commit call on the manager. We derive these obfuscated members from the bytecode
-        // itself (so we never hardcode the rename-churned names), then inject one more
-        // get-manager + add pair for the ReVanced entry just before the commit call.
+        // `void` commit. We derive these obfuscated members from the bytecode itself (so we never
+        // hardcode the rename-churned names), then inject one get-manager + add pair for the
+        // ReVanced entry right before the FIRST get-manager — making it the first unit added.
         addSettingsEntryMethod.apply {
             val pageClass = definingClass
 
             // The get-manager call: first `invoke-virtual {this}` on a method declared by the page
-            // class that takes no parameters and returns a reference type (the unit manager).
+            // class that takes no parameters and returns a reference type (the unit manager). This
+            // is the start of the add section, so we inject right here to land the entry first.
             val getManagerIndex = indexOfFirstInstruction {
                 opcode == Opcode.INVOKE_VIRTUAL &&
                     getReference<MethodReference>()?.let { ref ->
@@ -68,7 +69,7 @@ val settingsPatch = bytecodePatch(
             val getManager = getInstruction(getManagerIndex)
             val managerType = getManager.getReference<MethodReference>()!!.returnType
 
-            // The add-unit call: first `invoke-virtual` on the manager type taking a single
+            // The first add-unit call: first `invoke-virtual` on the manager type taking a single
             // parameter (the unit) and returning void.
             val addEntryIndex = indexOfFirstInstruction(getManagerIndex) {
                 opcode == Opcode.INVOKE_VIRTUAL &&
@@ -80,51 +81,21 @@ val settingsPatch = bytecodePatch(
             }
             val addEntry = getInstruction(addEntryIndex)
 
-            // The commit call: the no-arg void call on the manager type (`manager.commit()`),
-            // emitted once after every unit has been added. We inject right before its
-            // get-manager so the ReVanced entry is the last unit added before rendering.
-            val commitIndex = indexOfFirstInstruction(addEntryIndex) {
-                opcode == Opcode.INVOKE_VIRTUAL &&
-                    getReference<MethodReference>()?.let { ref ->
-                        ref.definingClass == managerType &&
-                            ref.parameterTypes.isEmpty() &&
-                            ref.returnType == "V"
-                    } == true
-            }
-            // Walk back from the commit to its own get-manager (`invoke-virtual {this}` +
-            // `move-result`); we insert our get-manager + add pair just before it.
-            val commitGetManagerIndex = indexOfFirstInstructionReversed(commitIndex) {
-                opcode == Opcode.INVOKE_VIRTUAL &&
-                    getReference<MethodReference>()?.let { ref ->
-                        ref.definingClass == pageClass &&
-                            ref.parameterTypes.isEmpty() &&
-                            ref.returnType == managerType
-                    } == true
-            }
+            // `this` is the receiver of the get-manager we inject in front of.
+            val thisRegister = getInstruction<FiveRegisterInstruction>(getManagerIndex).registerC
 
-            // `this` is the sole register live into the commit get-manager.
-            val thisRegister = getInstruction<FiveRegisterInstruction>(commitGetManagerIndex).registerC
-
-            // The add immediately preceding the commit gives us two registers (its manager and its
-            // unit operand) that are provably dead at the injection point, so we can safely reuse
-            // them as scratch without disturbing `this`.
-            val lastAddIndex = indexOfFirstInstructionReversed(commitGetManagerIndex) {
-                opcode == Opcode.INVOKE_VIRTUAL &&
-                    getReference<MethodReference>()?.let { ref ->
-                        ref.definingClass == managerType &&
-                            ref.parameterTypes.size == 1 &&
-                            ref.returnType == "V"
-                    } == true
-            }
-            val lastAdd = getInstruction<FiveRegisterInstruction>(lastAddIndex)
-            val managerRegister = lastAdd.registerC
-            val entryRegister = lastAdd.registerD
+            // The first add's two operands (its manager and unit registers) are written by the
+            // original get-manager + field-load that immediately follow our injection point, so
+            // they are dead going in and safe to reuse as scratch without disturbing `this`.
+            val firstAdd = getInstruction<FiveRegisterInstruction>(addEntryIndex)
+            val managerRegister = firstAdd.registerC
+            val entryRegister = firstAdd.registerD
 
             // If createSettingsEntry returns null (e.g. a future ExposeItem signature change it
             // can't satisfy), skip the add so the host page still renders its own rows instead of
             // failing to build the unit list.
             addInstructionsWithLabels(
-                commitGetManagerIndex,
+                getManagerIndex,
                 """
                     const-string v$entryRegister, "$settingsButtonClass"
                     const-string v$managerRegister, "$settingsButtonInfoClass"
@@ -136,7 +107,7 @@ val settingsPatch = bytecodePatch(
                     move-result-object v$managerRegister
                     invoke-virtual {v$managerRegister, v$entryRegister}, ${addEntry.getReference<MethodReference>()}
                 """,
-                ExternalLabel("revanced_skip_entry", getInstruction(commitGetManagerIndex)),
+                ExternalLabel("revanced_skip_entry", getInstruction(getManagerIndex)),
             )
         }
 
