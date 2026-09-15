@@ -30,7 +30,7 @@
 
 Модифицированное TikTok-приложение включает следующие функции:
 
-* **Меню настроек:** Добавляет пункт «ReVanced» в настройки TikTok (внизу страницы «О приложении»), где можно включать и отключать функции — в том числе новый переключатель «Пропускать рекламу при показе», управляющий автопролистыванием рекламы, прошедшей фильтр.
+* **Меню настроек:** Добавляет пункт «ReVanced settings» в настройки TikTok (вверху экрана «Условия и политики»), где можно переключать функции мода — включая автопролистывание рекламы, параметры загрузок и фильтрацию контента.
 * **Отключение требования входа:** Обходит обязательный экран входа/регистрации, позволяя сразу просматривать контент без аккаунта.
 * **Фильтр ленты:** Удаляет рекламу из видеоленты. Реклама распознаётся по нескольким признакам объекта `Aweme` (`adAwemeSource`, `getAwemeRawAd`, `isAd`, а также собственный классификатор TikTok `isPseudoAd` для брендовых и фото-объявлений). Объявления, которые рекламный движок вставляет в ленту уже *после* её загрузки (рекламные «поды», обходящие фильтр списка), автоматически проматываются в момент появления.
 * **Загрузки:** Принудительно включает скачивание всех видео (вероятно, функция сломана со стороны сервера), удаляет watermark TikTok из скачанных видео и изменяет директорию загрузки по умолчанию на /sdcard/Pictures/TikTok.
@@ -70,6 +70,22 @@
 
 > [!TIP]
 > После перезапуска вы будете авторизованы. Если вход всё ещё не подхватился, повторите шаги ещё раз и убедитесь, что код введён до истечения его срока действия.
+
+## Меню настроек ReVanced
+
+Пункт настроек мода встроен в интерфейс TikTok, но скрыт глубоко в подменю:
+
+1. Перейдите во вкладку **«Профиль»** (Profile) в правом нижнем углу.
+2. Нажмите на значок меню **☰** (три полоски) в правом верхнем углу.
+3. Выберите **«Настройки и конфиденциальность»** (Settings and privacy).
+4. Прокрутите список в самый низ до раздела **«Информация»** и нажмите **«Условия и политики»** (Terms and Policies).
+5. На открывшейся странице в самом верху (первым пунктом) нажмите на **«ReVanced settings»**.
+
+Внутри меню доступны параметры:
+* **Feed filter:** выключение рекламы, пропуск рекламы при показе (`Skip ads at render`), скрытие прямых эфиров, историй и фото-постов.
+* **Downloads:** выбор папки для загрузок и отключение водяных знаков TikTok.
+* **SIM spoof:** подмена региона SIM-карты (по умолчанию — `LV`, Латвия) для обхода ограничений ленты.
+* **About / Extension:** версии мода и ссылка на репозиторий.
 
 ## Лицензия
 
@@ -115,7 +131,7 @@ On the other hand, we have the ReVanced mod (or rather, a mix of plugins), where
 
 The modified TikTok application provides the following features:
 
-* **Settings menu:** Adds a "ReVanced" entry to TikTok's settings (at the bottom of the About page) where features can be toggled — including a new "Skip ads at render" sub-toggle that controls whether the feed auto-swipes past ads that slip through the filter.
+* **Settings menu:** Adds a "ReVanced settings" entry into TikTok's settings (at the very top of the "Terms and Policies" page), where mod features can be toggled — including ad auto-swiping, download settings, and content filters.
 * **Disable login requirement:** Bypasses the mandatory login/sign-up screen, allowing you to view content immediately without an account.
 * **Feed filter:** Removes advertisements from the video feed. Ads are detected via several `Aweme` signals (`adAwemeSource`, `getAwemeRawAd`, `isAd`, and TikTok's own `isPseudoAd` classifier for brand-takeover and photo ads). Ads that the ad engine injects into the feed *after* it loads (ad-pods that bypass the list filter) are automatically skipped the moment they appear.
 * **Downloads:** Force-enables downloading for all videos, removes the TikTok watermark from downloaded videos, and changes the default download directory to `/sdcard/Pictures/TikTok`.
@@ -155,6 +171,22 @@ If you hit an error while logging in, sign in through the **"Recover Your Accoun
 
 > [!TIP]
 > After restarting, you'll be signed in. If the session still isn't picked up, repeat the steps and make sure you enter the code before it expires.
+
+## ReVanced Settings Menu
+
+The mod's settings menu is integrated directly into TikTok, but is tucked away inside the sub-menus:
+
+1. Tap the **Profile** tab in the bottom right corner.
+2. Tap the hamburger menu button **☰** in the top right corner.
+3. Select **Settings and privacy**.
+4. Scroll all the way down to the **About** section and tap **Terms and Policies** (or **Terms & policies**).
+5. At the very top of that page, tap the first item: **"ReVanced settings"**.
+
+Inside the menu you can configure:
+* **Feed filter:** Ad removal toggles, render-time ad auto-skip (`Skip ads at render`), hiding live streams, stories, and photo posts.
+* **Downloads:** Custom download directory and watermark removal.
+* **SIM spoof:** SIM country code spoofing (default is `LV` - Latvia).
+* **About / Extension:** Version information and repository links.
 
 ## License
 
