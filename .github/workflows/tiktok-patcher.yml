@@ -202,21 +202,37 @@ jobs:
           find_base_apk() {
             DOWNLOAD_DIR="$1"
             PACKAGE_NAME="$2"
-          
+            AAPT=$(ls "$ANDROID_SDK_ROOT"/build-tools/*/aapt 2>/dev/null | sort -V | tail -1 || true)
+
             if [ -n "$PACKAGE_NAME" ] && [ -f "$DOWNLOAD_DIR/$PACKAGE_NAME.apk" ]; then
               echo "$DOWNLOAD_DIR/$PACKAGE_NAME.apk"
               return 0
             elif [ -f "$DOWNLOAD_DIR/base.apk" ]; then
               echo "$DOWNLOAD_DIR/base.apk"
               return 0
+            elif [ -n "$PACKAGE_NAME" ] && ls "$DOWNLOAD_DIR/$PACKAGE_NAME"*.apk 1>/dev/null 2>&1; then
+              ls "$DOWNLOAD_DIR/$PACKAGE_NAME"*.apk | head -n 1
+              return 0
             fi
-          
-            find "$DOWNLOAD_DIR" -maxdepth 1 -type f -name "*.apk" \
+
+            CANDIDATES=$(find "$DOWNLOAD_DIR" -maxdepth 1 -type f -name "*.apk" \
               ! -name "*-asset.apk" \
               ! -name "*df_*.apk" \
               ! -name "config.*.apk" \
               ! -name "split_*.apk" \
-              -exec ls -S {} + 2>/dev/null | head -n 1 || true
+              -exec ls -S {} + 2>/dev/null || true)
+
+            for cand in $CANDIDATES; do
+              if [ -n "$AAPT" ]; then
+                if ! "$AAPT" dump badging "$cand" 2>/dev/null | head -n 1 | grep -q "split="; then
+                  echo "$cand"
+                  return 0
+                fi
+              else
+                echo "$cand"
+                return 0
+              fi
+            done
           }
 
           apk_version_name() {
@@ -363,6 +379,7 @@ jobs:
 
           build_variant() {
             VARIANT="$1"
+            PACKAGE_NAME="$2"
             RAW_BASE="raw-base-${VARIANT}.apk"
             UNSIGNED_PATCHED="unsigned-tiktok-${VARIANT}.apk"
             DOWNLOAD_DIR="tiktok_${VARIANT}_dl"
@@ -387,18 +404,23 @@ jobs:
 
             mkdir "$SPLITS_DIR"
             cp "$UNSIGNED_PATCHED" "$SPLITS_DIR/base.apk"
-            find "$DOWNLOAD_DIR" -name "config.*.apk" -exec cp {} "$SPLITS_DIR"/ \;
+            # Copy all splits (config.*, df_*, split_*) excluding the unpatched raw base APK
+            find "$DOWNLOAD_DIR" -maxdepth 1 -type f -name "*.apk" \
+              ! -name "$PACKAGE_NAME.apk" \
+              ! -name "$PACKAGE_NAME-*.apk" \
+              ! -name "base.apk" \
+              -exec cp {} "$SPLITS_DIR"/ \;
 
             echo "Merging $VARIANT APKs..."
             java -jar APKEditor.jar m -i "$SPLITS_DIR" -o "$MERGED_APK"
           }
 
           if should_build original; then
-            build_variant original
+            build_variant original com.zhiliaoapp.musically
           fi
 
           if should_build asia; then
-            build_variant asia
+            build_variant asia com.ss.android.ugc.trill
           fi
 
       - name: Sign Universal APKs
