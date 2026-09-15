@@ -201,9 +201,21 @@ jobs:
 
           find_base_apk() {
             DOWNLOAD_DIR="$1"
+            PACKAGE_NAME="$2"
+          
+            if [ -n "$PACKAGE_NAME" ] && [ -f "$DOWNLOAD_DIR/$PACKAGE_NAME.apk" ]; then
+              echo "$DOWNLOAD_DIR/$PACKAGE_NAME.apk"
+              return 0
+            elif [ -f "$DOWNLOAD_DIR/base.apk" ]; then
+              echo "$DOWNLOAD_DIR/base.apk"
+              return 0
+            fi
+          
             find "$DOWNLOAD_DIR" -maxdepth 1 -type f -name "*.apk" \
               ! -name "*-asset.apk" \
-              ! -name "*-df_*.apk" \
+              ! -name "*df_*.apk" \
+              ! -name "config.*.apk" \
+              ! -name "split_*.apk" \
               -exec ls -S {} + 2>/dev/null | head -n 1 || true
           }
 
@@ -300,7 +312,7 @@ jobs:
             fi
 
             # Base APK is the largest APK file in the download directory (not a split/config APK).
-            BASE_APK=$(find_base_apk "$DOWNLOAD_DIR")
+            BASE_APK=$(find_base_apk "$DOWNLOAD_DIR" "$PACKAGE_NAME")
 
             if [ -z "$BASE_APK" ]; then
               echo "Base APK not found for $PACKAGE_NAME!"
