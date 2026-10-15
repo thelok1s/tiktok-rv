@@ -4,6 +4,8 @@ import app.revanced.patcher.extensions.ExternalLabel
 import app.revanced.patcher.extensions.addInstructions
 import app.revanced.patcher.extensions.addInstructionsWithLabels
 import app.revanced.patcher.extensions.getInstruction
+import app.revanced.patcher.firstClassDef
+import app.revanced.patcher.patch.PatchException
 import app.revanced.patcher.patch.bytecodePatch
 import app.revanced.patches.tiktok.shared.onRenderFirstFrameMethod
 import app.revanced.util.indexOfFirstInstructionOrThrow
@@ -38,6 +40,25 @@ val rememberClearDisplayPatch = bytecodePatch(
             // region Override the "Clear display" configuration load event to load the state of clear display.
 
             val clearDisplayEventClass = parameters[0].type
+
+            // The event constructor's argument order changed in 47.x; pick the one this version has.
+            // Registers: v0 = event, v1 = type, v2 = enter method, v3 = type name, v4 = state.
+            val eventConstructors = firstClassDef(clearDisplayEventClass).methods
+                .filter { it.name == "<init>" }
+                .map { it.parameterTypes.joinToString("") }
+            val constructEvent = when {
+                // Up to 46.x: (type, enterMethod, typeName, isClean).
+                "ILjava/lang/String;Ljava/lang/String;Z" in eventConstructors ->
+                    "invoke-direct { v0, v1, v2, v3, v4 }, " +
+                        "$clearDisplayEventClass-><init>(ILjava/lang/String;Ljava/lang/String;Z)V"
+                // 47.x: (isClean, type, enterMethod, typeName).
+                "ZILjava/lang/String;Ljava/lang/String;" in eventConstructors ->
+                    "invoke-direct { v0, v4, v1, v2, v3 }, " +
+                        "$clearDisplayEventClass-><init>(ZILjava/lang/String;Ljava/lang/String;)V"
+                else -> throw PatchException(
+                    "No known clear display event constructor in $clearDisplayEventClass: $eventConstructors",
+                )
+            }
             onRenderFirstFrameMethod.addInstructionsWithLabels(
                 0,
                 """
@@ -58,7 +79,7 @@ val rememberClearDisplayPatch = bytecodePatch(
                     if-eqz v4, :clear_display_disabled
 
                     new-instance v0, $clearDisplayEventClass
-                    invoke-direct { v0, v1, v2, v3, v4 }, $clearDisplayEventClass-><init>(ILjava/lang/String;Ljava/lang/String;Z)V
+                    $constructEvent
                     invoke-virtual { v0 }, $clearDisplayEventClass->post()Lcom/ss/android/ugc/governance/eventbus/IEvent;
                     """,
                 ExternalLabel("clear_display_disabled", onRenderFirstFrameMethod.getInstruction(0)),
