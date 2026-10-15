@@ -41,21 +41,26 @@ echo "==> Building patch bundle"
 BUNDLE="$(find revanced-patches/patches/build/libs -name 'patches-*.rvp' ! -name '*sources*' | head -n1)"
 echo "==> Bundle: $BUNDLE"
 
-echo "==> Patching base ($BASE_APK)"
-java -jar revanced-cli.jar patch "$BASE_APK" \
-  -p "$BUNDLE" -b -o "$ROOT/.local-patched-base.apk" --purge \
-  --exclusive "${PATCHES[@]}"
-
+# Merge before patching (mirrors CI): some TikTok builds keep code in df_* feature
+# splits, which patches can only see once everything is in one APK.
 echo "==> Merging splits"
 SPLITS_DIR="$ROOT/.local-splits"
 rm -rf "$SPLITS_DIR"; mkdir -p "$SPLITS_DIR"
-cp "$ROOT/.local-patched-base.apk" "$SPLITS_DIR/base.apk"
+cp "$BASE_APK" "$SPLITS_DIR/base.apk"
 for c in config.arm64_v8a config.xxxhdpi config.en config.ru; do
   [ -f "$SPLITS_SRC/$c.apk" ] && cp "$SPLITS_SRC/$c.apk" "$SPLITS_DIR/"
 done
-rm -f "$ROOT/.local-merged.apk"
+for df in "$SPLITS_SRC"/df_*.apk; do
+  [ -f "$df" ] && cp "$df" "$SPLITS_DIR/"
+done
+rm -f "$ROOT/.local-merged-raw.apk"
 if [ -f "$ROOT/tools/APKEditor.jar" ]; then APKEDITOR="$ROOT/tools/APKEditor.jar"; else APKEDITOR="$ROOT/APKEditor.jar"; fi
-java -jar "$APKEDITOR" m -i "$SPLITS_DIR" -o "$ROOT/.local-merged.apk"
+java -jar "$APKEDITOR" m -i "$SPLITS_DIR" -o "$ROOT/.local-merged-raw.apk"
+
+echo "==> Patching merged APK"
+java -jar revanced-cli.jar patch "$ROOT/.local-merged-raw.apk" \
+  -p "$BUNDLE" -b -o "$ROOT/.local-merged.apk" --purge \
+  --exclusive "${PATCHES[@]}"
 
 if [ ! -f "$KS" ]; then
   echo "==> Generating local keystore"

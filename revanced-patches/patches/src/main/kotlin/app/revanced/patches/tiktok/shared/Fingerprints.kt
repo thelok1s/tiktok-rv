@@ -21,6 +21,12 @@ internal val BytecodePatchContext.getEnterFromMethod by gettingFirstImmutableMet
     )
 }
 
-internal val BytecodePatchContext.onRenderFirstFrameMethod by gettingFirstMethodDeclaratively("method_enable_viewpager_preload_duration") {
+// Anchored by name: up to 46.x the body contained "method_enable_viewpager_preload_duration",
+// but 47.x moved that preload logic into ViewPagerPanelComponent, leaving the method itself
+// (BaseListFragmentPanel.onRenderFirstFrame(String)) intact and un-obfuscated.
+internal val BytecodePatchContext.onRenderFirstFrameMethod by gettingFirstMethodDeclaratively {
+    name("onRenderFirstFrame")
     definingClass("/BaseListFragmentPanel;")
+    returnType("V")
+    parameterTypes("Ljava/lang/String;")
 }
