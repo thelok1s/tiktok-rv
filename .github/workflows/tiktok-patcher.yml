@@ -366,8 +366,10 @@ jobs:
           echo "Downloading APKEditor..."
           wget https://github.com/REAndroid/APKEditor/releases/download/V1.4.1/APKEditor-1.4.1.jar -O APKEditor.jar
 
-      - name: Patch and merge APKs
+      - name: Merge and patch APKs
         run: |
+          set -o pipefail
+
           # Exclude the -sources bundle: it sorts/lists alongside the real one but contains
           # no compiled patches, so picking it silently produces an unpatched APK.
           PATCH_BUNDLE=$(find revanced-patches/patches/build/libs -name "patches-*.rvp" ! -name "*sources*" | head -n 1)
@@ -379,19 +381,38 @@ jobs:
 
           build_variant() {
             VARIANT="$1"
-            PACKAGE_NAME="$2"
             RAW_BASE="raw-base-${VARIANT}.apk"
-            UNSIGNED_PATCHED="unsigned-tiktok-${VARIANT}.apk"
             DOWNLOAD_DIR="tiktok_${VARIANT}_dl"
             SPLITS_DIR="splits_to_merge_${VARIANT}"
+            RAW_MERGED="raw-merged-${VARIANT}.apk"
             MERGED_APK="unsigned-merged-${VARIANT}.apk"
+            PATCH_LOG="patch-${VARIANT}.log"
 
             echo "Raw $VARIANT base APK size: $(du -sh "$RAW_BASE" | cut -f1)"
 
-            java -jar revanced-cli.jar patch "$RAW_BASE" \
+            # Merge BEFORE patching. Depending on the mirror, TikTok ships either a ~450 MB base
+            # with all code inline or a ~70 MB base whose code lives in df_*_dex feature splits.
+            # Patching only the base then misses every class that sits in a split, so patches
+            # (e.g. Settings) fail on some builds and not others.
+            mkdir -p "$SPLITS_DIR"
+            cp "$RAW_BASE" "$SPLITS_DIR/base.apk"
+            for apk in "$DOWNLOAD_DIR"/*.apk; do
+              cmp -s "$apk" "$RAW_BASE" && continue
+              cp "$apk" "$SPLITS_DIR/"
+            done
+            if [ "$(ls "$SPLITS_DIR" | wc -l)" -gt 1 ]; then
+              echo "Merging $VARIANT APKs: $(ls "$SPLITS_DIR" | tr '\n' ' ')"
+              java -jar APKEditor.jar m -i "$SPLITS_DIR" -o "$RAW_MERGED"
+            else
+              echo "No splits for $VARIANT; base APK is already universal."
+              cp "$RAW_BASE" "$RAW_MERGED"
+            fi
+
+            java -jar revanced-cli.jar patch "$RAW_MERGED" \
               -p "$PATCH_BUNDLE" \
               -b \
-              -o "$UNSIGNED_PATCHED" \
+              -o "$MERGED_APK" \
+              --purge \
               --exclusive \
               -e "Settings" \
               -e "Feed filter" \
@@ -400,27 +421,28 @@ jobs:
               -e "Remember clear display" \
               -e "Show seekbar" \
               -e "Playback speed" \
-              -e "Disable login requirement"
+              -e "Disable login requirement" 2>&1 | tee "$PATCH_LOG"
 
-            mkdir "$SPLITS_DIR"
-            cp "$UNSIGNED_PATCHED" "$SPLITS_DIR/base.apk"
-            # Copy all splits (config.*, df_*, split_*) excluding the unpatched raw base APK
-            find "$DOWNLOAD_DIR" -maxdepth 1 -type f -name "*.apk" \
-              ! -name "$PACKAGE_NAME.apk" \
-              ! -name "$PACKAGE_NAME-*.apk" \
-              ! -name "base.apk" \
-              -exec cp {} "$SPLITS_DIR"/ \;
-
-            echo "Merging $VARIANT APKs..."
-            java -jar APKEditor.jar m -i "$SPLITS_DIR" -o "$MERGED_APK"
+            # revanced-cli still writes an APK when individual patches fail. Never ship a build
+            # without the settings menu or the extension hooks (unnamed dependency patches);
+            # other failures are reported in the release notes.
+            grep -oE 'SEVERE: "[^"]+" failed' "$PATCH_LOG" \
+              | sed -E 's/^SEVERE: "(.*)" failed$/\1/' | sort -u > "failed-patches-${VARIANT}.txt" || true
+            if grep -qxE 'Settings|BytecodePatch@.*' "failed-patches-${VARIANT}.txt"; then
+              echo "::error::Required patches failed for $VARIANT: $(tr '\n' ' ' < "failed-patches-${VARIANT}.txt")"
+              exit 1
+            fi
+            if [ -s "failed-patches-${VARIANT}.txt" ]; then
+              echo "::warning::Patches not applied for $VARIANT: $(tr '\n' ' ' < "failed-patches-${VARIANT}.txt")"
+            fi
           }
 
           if should_build original; then
-            build_variant original com.zhiliaoapp.musically
+            build_variant original
           fi
 
           if should_build asia; then
-            build_variant asia com.ss.android.ugc.trill
+            build_variant asia
           fi
 
       - name: Sign Universal APKs
@@ -471,6 +493,14 @@ jobs:
               echo "- asia: com.ss.android.ugc.trill v${ASIA_VERSION}"
               ASSETS+=(tiktok-rv-asia.apk)
             fi
+
+            for VARIANT in original asia; do
+              if [ -s "failed-patches-${VARIANT}.txt" ]; then
+                echo
+                echo "⚠️ Not applied to the ${VARIANT} build (this TikTok version changed the patched code):"
+                sed 's/^/- /' "failed-patches-${VARIANT}.txt"
+              fi
+            done
           } > release-notes.md
 
           TAG="v$(date +'%Y.%m.%d')"

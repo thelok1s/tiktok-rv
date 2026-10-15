@@ -43,8 +43,8 @@
 
 1. Автоматически получает последние split APK-файлы TikTok напрямую из Google Play Store с помощью [gplaydl](https://github.com/rehmatworks/gplaydl). По умолчанию собираются обе ветки: `original` (`com.zhiliaoapp.musically`) и `asia` (`com.ss.android.ugc.trill`).
 2. Компилирует модифицированное дерево исходников revanced-patches, включённое в этот репозиторий.
-3. Использует [revanced-cli](https://github.com/revanced/revanced-cli) для внедрения патчей в байткод stripped Base APK.
-4. Объединяет пропатченный base APK с configuration split APK через [APKEditor](https://github.com/REAndroid/APKEditor), получая Universal APK для каждой выбранной ветки.
+3. Объединяет base APK со всеми split APK (config и dynamic feature) через [APKEditor](https://github.com/REAndroid/APKEditor) в Universal APK. Объединение выполняется *до* патчинга: часть версий TikTok хранит код в split-файлах `df_*`, и без этого шага патчи на них не применялись.
+4. Использует [revanced-cli](https://github.com/revanced/revanced-cli) для внедрения патчей в байткод объединённого APK. Если не применился патч меню настроек, сборка останавливается; остальные непримененные патчи перечисляются в описании релиза.
 5. Подписывает итоговые Universal APK с помощью PKCS12 keystore и загружает их в GitHub Releases. При ручном запуске Actions доступен выбор `both`, `original` или `asia`.
 
 ## Установка (Installation)
@@ -86,6 +86,23 @@
 * **Downloads:** выбор папки для загрузок и отключение водяных знаков TikTok.
 * **SIM spoof:** подмена региона SIM-карты (по умолчанию — `LV`, Латвия) для обхода ограничений ленты.
 * **About / Extension:** версии мода и ссылка на репозиторий.
+
+> [!NOTE]
+> Если пункта «ReVanced settings» нет — проверьте описание релиза: в нём перечислены патчи, которые не удалось применить к данной версии TikTok.
+
+## Частые вопросы
+
+### Антивирус определяет APK как Riskware / Repack
+
+Детекты вида `Android.Riskware.Repack.*` (Bitdefender и др.) — ожидаемы. Это эвристика «приложение было пересобрано и переподписано не оригинальным разработчиком», а мод именно так и устроен: это официальный APK TikTok с изменённым байткодом, подписанный ключом этого репозитория. Такие срабатывания не означают наличия вредоносного кода.
+
+Как проверить сборку самостоятельно:
+* В каждом релизе есть ссылка на отчёт VirusTotal.
+* Все релизы собираются публично в [GitHub Actions](../../actions/workflows/tiktok-patcher.yml) из исходников этого репозитория — можно сверить лог сборки или собрать APK самому (fork + запуск workflow).
+
+### Видео не грузятся без VPN / загрузки сохраняются пустыми файлами
+
+Если первое видео играет, а следующие не загружаются или скачиваются пустыми файлами, — скорее всего, ваш провайдер блокирует или замедляет CDN-серверы TikTok (`*.tiktokcdn.com`). Это происходит на уровне сети, патч APK обойти это не может. Используйте VPN или средства обхода DPI.
 
 ## Лицензия
 
@@ -144,8 +161,8 @@ The modified TikTok application provides the following features:
 
 1. Automatically fetches the latest split APKs for TikTok directly from the Google Play Store using [gplaydl](https://github.com/rehmatworks/gplaydl). By default, both branches are built: `original` (`com.zhiliaoapp.musically`) and `asia` (`com.ss.android.ugc.trill`).
 2. Compiles the modified `revanced-patches` source tree included in this repository.
-3. Uses [revanced-cli](https://github.com/revanced/revanced-cli) to inject patches into the bytecode of the stripped Base APK.
-4. Merges the patched base APK with configuration split APKs through [APKEditor](https://github.com/REAndroid/APKEditor), producing a Universal APK for each selected branch.
+3. Merges the base APK with all split APKs (config and dynamic feature) through [APKEditor](https://github.com/REAndroid/APKEditor) into a Universal APK. Merging happens *before* patching: some TikTok versions keep code in `df_*` split files, and patches used to silently miss it.
+4. Uses [revanced-cli](https://github.com/revanced/revanced-cli) to inject patches into the bytecode of the merged APK. The build stops if the settings-menu patch fails; any other patch that could not be applied is listed in the release notes.
 5. Signs the final Universal APKs using a PKCS12 keystore and uploads them to GitHub Releases. When running the Action manually, you can choose `both`, `original`, or `asia`.
 
 ## Installation
@@ -187,6 +204,23 @@ Inside the menu you can configure:
 * **Downloads:** Custom download directory and watermark removal.
 * **SIM spoof:** SIM country code spoofing (default is `LV` - Latvia).
 * **About / Extension:** Version information and repository links.
+
+> [!NOTE]
+> If "ReVanced settings" is missing, check the release notes: they list any patches that could not be applied to that TikTok version.
+
+## FAQ
+
+### My antivirus flags the APK as Riskware / Repack
+
+Detections such as `Android.Riskware.Repack.*` (Bitdefender and others) are expected. The heuristic means "this app was rebuilt and re-signed by someone other than the original developer". That is exactly what this mod is: the official TikTok APK with modified bytecode, signed with this repository's key. The detection does not indicate malicious code.
+
+To verify a build yourself:
+* Every release links to its VirusTotal report.
+* All releases are built publicly in [GitHub Actions](../../actions/workflows/tiktok-patcher.yml) from the sources in this repository. You can check the build log or build the APK yourself (fork + run the workflow).
+
+### Videos don't load without a VPN / downloads are saved as empty files
+
+If the first video plays but the next ones don't load, or downloads come out as empty files, your ISP is most likely blocking or throttling TikTok's CDN servers (`*.tiktokcdn.com`). This happens at the network level and an APK patch cannot work around it. Use a VPN or a DPI-bypass tool.
 
 ## License
 
